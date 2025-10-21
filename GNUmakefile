@@ -8,16 +8,36 @@ LD := $(TOOLCHAIN_PREFIX)ld
 
 # --- Compiler and Linker Flags ---
 override CFLAGS += \
-    -Wall -Wextra -std=gnu11 -ffreestanding -fno-stack-protector \
-    -fno-stack-check -fno-lto -fno-PIC -ffunction-sections -fdata-sections \
-    -m64 -march=x86-64 -mabi=sysv -mno-red-zone -mcmodel=kernel -g
+	-Wall \
+	-Wextra \
+	-std=gnu11 \
+	-ffreestanding \
+	-fno-stack-protector \
+	-fno-stack-check \
+	-fno-lto \
+	-fno-PIC \
+	-ffunction-sections \
+	-fdata-sections \
+	-m64 \
+	-march=x86-64 \
+	-mabi=sysv \
+	-mno-red-zone \
+	-mcmodel=kernel \
+	-g
 
 override CPPFLAGS += \
-    -I src -DLIMINE_API_REVISION=3 -MMD -MP
+	-I src \
+	-DLIMINE_API_REVISION=3 \
+	-MMD \
+	-MP
 
 override LDFLAGS += \
-    -m elf_x86_64 -nostdlib -static -z max-page-size=0x1000 \
-    --gc-sections -T linker.lds
+	-m elf_x86_64 \
+	-nostdlib \
+	-static \
+	-z max-page-size=0x1000 \
+	--gc-sections \
+	-T linker.lds
 
 # --- Find Source Files ---
 override SRCFILES := $(shell find -L src -type f -name '*.c' 2>/dev/null | LC_ALL=C sort)
@@ -48,18 +68,7 @@ obj/%.o: src/%.c GNUmakefile
 clean:
 	rm -rf bin obj *.iso iso_root limine
 
-# Rule to get the Limine bootloader
-.PHONY: limine
-limine:
-	@echo "Unpacking Limine..."
-	# This download is commented out because you did it manually
-	# @curl -L -o limine.tar.gz "https...etc"
-	@mkdir -p limine
-	@tar -xf limine.tar -C limine --strip-components=1
-	@rm -f limine.tar
-
 # Rule to build the ISO image
-# DEPENDENCIES are on the SAME LINE as the target
 .PHONY: image.iso
 image.iso: all limine.conf limine
 	@echo "Building ISO image..."
@@ -71,7 +80,7 @@ image.iso: all limine.conf limine
 	xorriso -as mkisofs -b limine-bios-cd.bin \
 	    -no-emul-boot -boot-load-size 4 -boot-info-table \
 	    iso_root -o image.iso
-	./limine/limine-bios-install image.iso
+	./limine/limine bios-install image.iso
 	rm -rf iso_root
 
 # Rule to run QEMU
