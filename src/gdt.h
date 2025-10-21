@@ -13,8 +13,8 @@ struct gdt_descriptor {
 // --- Correct 64-bit GDT Entry Flags ---
 // Access byte flags
 #define GDT_ACCESS_PRESENT      (1ULL << 47) // Present bit
-#define GDT_ACCESS_PRIVL(x)     (((x) & 0x3) << 45)  // Privilege level (0-3)
-#define GDT_ACCESS_DESCTYPE(x)  ((x) << 44)  // Descriptor type (0=system, 1=code/data)
+#define GDT_ACCESS_PRIVL(x)     (((uint64_t)(x) & 0x3) << 45)  // Privilege level (0-3)
+#define GDT_ACCESS_DESCTYPE(x)  ((uint64_t)(x) << 44)  // Descriptor type (0=system, 1=code/data)
 #define GDT_ACCESS_EXECUTABLE   (1ULL << 43) // Executable bit
 #define GDT_ACCESS_RW           (1ULL << 41) // Readable/Writable bit
 

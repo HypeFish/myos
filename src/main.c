@@ -103,9 +103,8 @@ void _start(void) {
     // --- 3. PRINT TO THE SERIAL PORT ---
     serial_write_string("Hello, Serial World!\n");
 
-    serial_write_string("Initializing GDT...\n");
+    // Initialize the GDT
     gdt_init();
-    serial_write_string("GDT Initialized.\n");
 
     // Ensure we got a framebuffer.
     if (framebuffer_request.response == NULL
