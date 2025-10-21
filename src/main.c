@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <limine.h>
 #include <serialport.h>
+#include "gdt.h"
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -93,16 +94,18 @@ static void hcf(void) {
     }
 }
 
+
 // The following will be our kernel's entry point.
-// If renaming kmain() to something else, make sure to change the
-// linker script accordingly.
 void _start(void) {
     // --- 2. CALL YOUR SERIAL INIT FUNCTION ---
-    // (Assuming your serial_init() sets up the port)
-    // serial_init(); 
+    serial_init();
 
     // --- 3. PRINT TO THE SERIAL PORT ---
     serial_write_string("Hello, Serial World!\n");
+
+    serial_write_string("Initializing GDT...\n");
+    gdt_init();
+    serial_write_string("GDT Initialized.\n");
 
     // Ensure we got a framebuffer.
     if (framebuffer_request.response == NULL

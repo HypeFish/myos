@@ -40,10 +40,14 @@ override LDFLAGS += \
 	-T linker.lds
 
 # --- Find Source Files ---
-override SRCFILES := $(shell find -L src -type f -name '*.c' 2>/dev/null | LC_ALL=C sort)
-override OBJ := $(patsubst src/%.c, obj/%.o, $(SRCFILES))
-override HEADER_DEPS := $(patsubst src/%.c, obj/%.d, $(SRCFILES))
+# --- Find all source files (C and Assembly) ---
+CFILES := $(shell find -L src -type f -name '*.c' 2>/dev/null | LC_ALL=C sort)
+ASFILES := $(shell find -L src -type f -name '*.S' 2>/dev/null | LC_ALL=C sort)
 
+COBJ := $(patsubst src/%.c, obj/%.o, $(CFILES))
+ASOBJ := $(patsubst src/%.S, obj/%.o, $(ASFILES))
+OBJ := $(COBJ) $(ASOBJ)
+HEADER_DEPS := $(patsubst src/%.c, obj/%.d, $(CFILES))
 # --- Build Rules ---
 
 # Default target
@@ -63,6 +67,11 @@ obj/%.o: src/%.c GNUmakefile
 	mkdir -p "$(dir $@)"
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
+# NEW: Compilation rule for .S (Assembly) files
+obj/%.o: src/%.S GNUmakefile
+	@mkdir -p "$(dir $@)"
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+
 # Rule to clean the project directory
 .PHONY: clean
 clean:
@@ -70,12 +79,12 @@ clean:
 
 # Rule to build the ISO image
 .PHONY: image.iso
-image.iso: all limine.conf limine
+image.iso: all limine.cfg limine
 	@echo "Building ISO image..."
 	rm -rf iso_root
 	mkdir -p iso_root
 	cp bin/$(OUTPUT) iso_root/kernel.elf
-	cp limine.conf limine/limine-bios.sys \
+	cp limine.cfg limine/limine-bios.sys \
 	    limine/limine-bios-cd.bin iso_root/
 	xorriso -as mkisofs -b limine-bios-cd.bin \
 	    -no-emul-boot -boot-load-size 4 -boot-info-table \
