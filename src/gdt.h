@@ -4,11 +4,23 @@
 #include <stdint.h>
 
 // GDT Descriptor (GDTR) structure
+#ifdef _MSC_VER
+#pragma pack(push,1)
+#define PACKED
+#else
+#define PACKED __attribute__((packed))
+#endif
+
 struct gdt_descriptor {
     uint16_t limit;
     uint64_t base;
-} __attribute__((packed));
+} PACKED;
 
+#ifdef _MSC_VER
+#pragma pack(pop)
+#endif
+
+#undef PACKED
 
 // --- Correct 64-bit GDT Entry Flags ---
 // Access byte flags
