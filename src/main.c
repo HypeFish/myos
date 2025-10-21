@@ -2,12 +2,13 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <limine.h>
+#include <serialport.h>
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
 // See specification for further info.
 
-__attribute__((used, section(".limine_requests")));
+__attribute__((used, section(".limine_requests")))
 static volatile LIMINE_BASE_REVISION(3);
 
 // The Limine requests can be placed anywhere, but it is important that
@@ -15,7 +16,7 @@ static volatile LIMINE_BASE_REVISION(3);
 // be made volatile or equivalent, _and_ they should be accessed at least
 // once or marked as used with the "used" attribute as done here.
 
-__attribute__((used, section(".limine_requests")));
+__attribute__((used, section(".limine_requests")))
 static volatile struct limine_framebuffer_request
 framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST,
@@ -24,10 +25,10 @@ framebuffer_request = {
 
 // Finally, define the start and end markers for the Limine requests.
 // These can also be moved anywhere, to any .c file, as seen fit.
-__attribute__((used, section(".limine_requests_start")));
+__attribute__((used, section(".limine_requests_start")))
 static volatile LIMINE_REQUESTS_START_MARKER;
 
-__attribute__((used, section(".limine_requests_end")));
+__attribute__((used, section(".limine_requests_end")))
 static volatile LIMINE_REQUESTS_END_MARKER;
 
 // GCC and Clang reserve the right to generate calls to the following
@@ -63,8 +64,8 @@ int memcmp(const void* s1, const void* s2, size_t n) {
         if (p1[i] != p2[i]) {
             return (int)(p1[i] - p2[i]);
         }
-        return 0;
     }
+    return 0;
 }
 
 void* memmove(void* dest, const void* src, size_t n) {
@@ -81,42 +82,42 @@ void* memmove(void* dest, const void* src, size_t n) {
             pdest[i - 1] = psrc[i - 1];
         }
     }
+    return dest;
 }
 
 // Halt and catch fire function
 static void hcf(void) {
+    __asm__ volatile ("cli");
     for (;;) {
-        asm("hlt");
+        __asm__ volatile ("hlt");
     }
 }
 
 // The following will be our kernel's entry point.
 // If renaming kmain() to something else, make sure to change the
 // linker script accordingly.
+void _start(void) {
+    // --- 2. CALL YOUR SERIAL INIT FUNCTION ---
+    // (Assuming your serial_init() sets up the port)
+    // serial_init(); 
 
-void kmain(void) {
-    // Ensure the bootloader understands our base revision
-    if (LIMINE_BASE_REVISION_SUPPORTED < 3) {
-        hcf();
-    }
+    // --- 3. PRINT TO THE SERIAL PORT ---
+    serial_write_string("Hello, Serial World!\n");
 
-    // Ensure a framebuffer was provided
+    // Ensure we got a framebuffer.
     if (framebuffer_request.response == NULL
-        || framebuffer_request.response->framebuffer_count == 0) {
+        || framebuffer_request.response->framebuffer_count < 1) {
         hcf();
     }
 
-    // Get the first framebuffer
-    struct limine_framebuffer* framebuffer =
-        framebuffer_request.response->framebuffers[0];
+    struct limine_framebuffer* framebuffer = framebuffer_request.response->framebuffers[0];
 
-    //Assume the framebuffer is in RGB format with 32 bits per pixel
+    // Draw the diagonal line
+    uint32_t* fb_ptr = framebuffer->address;
     for (size_t i = 0; i < 100; i++) {
-        volatile uint32_t* fb_ptr = framebuffer->address;
-        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff; // White pixel
+        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
     }
 
-    // Halt the CPU
+    // We're done, just hang...
     hcf();
-
 }

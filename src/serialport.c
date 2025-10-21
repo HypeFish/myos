@@ -1,4 +1,7 @@
-# define PORT 0x3f8
+#include <stddef.h>
+#include "io.h"
+
+# define PORT 0x3f8 //COM 1
 
 static int init_serial() {
     outb(PORT + 1, 0x00);    // Disable all interrupts
@@ -40,4 +43,14 @@ void write_serial(char a) {
     while (is_transmit_empty() == 0);
 
     outb(PORT, a);
+}
+
+void serial_write_string(const char* s) {
+    while (*s) {
+        write_serial(*s++);
+    }
+}
+
+void serial_init(void) {
+    init_serial();
 }
