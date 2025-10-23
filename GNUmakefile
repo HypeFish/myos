@@ -23,7 +23,8 @@ override CFLAGS += \
     -mabi=sysv \
     -mno-red-zone \
     -mcmodel=kernel \
-    -g
+    -g \
+    -Wno-unused-function # Add this to ignore unused static inline functions (like cli)
 
 override CPPFLAGS += \
     -I src \
@@ -41,12 +42,14 @@ override LDFLAGS += \
 
 # --- Find Source Files ---
 CFILES := $(shell find -L src -type f -name '*.c' 2>/dev/null | LC_ALL=C sort)
+# <<< MODIFICATION: Add idt_asm.S to the ASFILES list
 ASFILES := $(shell find -L src -type f -name '*.S' 2>/dev/null | LC_ALL=C sort)
 
 COBJ := $(patsubst src/%.c, obj/%.o, $(CFILES))
 ASOBJ := $(patsubst src/%.S, obj/%.o, $(ASFILES))
 OBJ := $(COBJ) $(ASOBJ)
-HEADER_DEPS := $(patsubst src/%.c, obj/%.d, $(CFILES))
+# <<< MODIFICATION: Include .d files from .S files as well, in case of .incbin or future needs
+HEADER_DEPS := $(patsubst src/%.c, obj/%.d, $(CFILES)) $(patsubst src/%.S, obj/%.d, $(ASFILES))
 
 # --- Build Rules ---
 
@@ -105,4 +108,3 @@ run: image.iso
 	@qemu-system-x86_64 -cdrom image.iso \
 	-no-reboot -no-shutdown \
 	-serial stdio
-

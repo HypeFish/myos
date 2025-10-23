@@ -4,6 +4,7 @@
 #include <limine.h>
 #include <serialport.h>
 #include "gdt.h"
+#include "idt.h"        // <<< 1. INCLUDE THE NEW IDT HEADER
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -59,7 +60,7 @@ void* memset(void* s, int c, size_t n) {
 
 int memcmp(const void* s1, const void* s2, size_t n) {
     const uint8_t* p1 = (const uint8_t*)s1;
-    const uint8_t* p2 = (const uint8_t*)s2;
+    const uint8_t* p2 = (const uint8_t*)s1;
 
     for (size_t i = 0; i < n; i++) {
         if (p1[i] != p2[i]) {
@@ -97,18 +98,24 @@ static void hcf(void) {
 
 // The following will be our kernel's entry point.
 void _start(void) {
-    // --- 2. CALL YOUR SERIAL INIT FUNCTION ---
+    // --- 1. Initialize Serial Port ---
     serial_init();
-
-    // --- 3. PRINT TO THE SERIAL PORT ---
     serial_write_string("Hello, Serial World!\n");
 
-    // Initialize the GDT
+    // --- 2. Initialize GDT ---
     gdt_init();
+
+    // --- 3. Initialize IDT ---
+    idt_init();     // <<< 2. CALL THE IDT INIT FUNCTION
+
+    // --- 4. Enable Interrupts ---
+    sti();          // <<< 3. ENABLE INTERRUPTS
+    serial_write_string("Interrupts enabled!\n");
 
     // Ensure we got a framebuffer.
     if (framebuffer_request.response == NULL
         || framebuffer_request.response->framebuffer_count < 1) {
+        serial_write_string("ERROR: No framebuffer.\n");
         hcf();
     }
 
@@ -117,9 +124,12 @@ void _start(void) {
     // Draw the diagonal line
     uint32_t* fb_ptr = framebuffer->address;
     for (size_t i = 0; i < 100; i++) {
-        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
+        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff; // White
     }
 
+    serial_write_string("Drew to framebuffer.\n");
+
     // We're done, just hang...
+    serial_write_string("Kernel main task finished. Halting.\n");
     hcf();
 }

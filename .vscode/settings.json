@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        ".fantomasignore": "ignore",
+        "*.rmd": "markdown",
+        "cstdint": "cpp"
+    }
+}
