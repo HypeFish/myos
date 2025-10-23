@@ -4,7 +4,10 @@
 #include <limine.h>
 #include <serialport.h>
 #include "gdt.h"
-#include "idt.h"        // <<< 1. INCLUDE THE NEW IDT HEADER
+#include "idt.h"
+#include "pic.h"
+#include "string.h"       // <-- NEW: Include our string header
+#include "framebuffer.h"  // <-- NEW: Include our framebuffer header
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -33,59 +36,10 @@ static volatile LIMINE_REQUESTS_START_MARKER;
 __attribute__((used, section(".limine_requests_end")))
 static volatile LIMINE_REQUESTS_END_MARKER;
 
-// GCC and Clang reserve the right to generate calls to the following
-// 4 functions even if they are not directly called.
-// Implement them as the C specification mandates.
-// DO NOT remove or rename these functions, or stuff will eventually break!
-// They CAN be moved to a different .c file.
-void* memcpy(void* restrict dest, const void* restrict src, size_t n) {
-    uint8_t* restrict pdest = (uint8_t * restrict)dest;
-    const uint8_t* restrict psrc = (const uint8_t * restrict)src;
-
-    for (size_t i = 0; i < n; i++) {
-        pdest[i] = psrc[i];
-    }
-
-    return dest;
-}
-
-void* memset(void* s, int c, size_t n) {
-    uint8_t* p = (uint8_t*)s;
-
-    for (size_t i = 0; i < n; i++) {
-        p[i] = (uint8_t)c;
-    }
-    return s;
-}
-
-int memcmp(const void* s1, const void* s2, size_t n) {
-    const uint8_t* p1 = (const uint8_t*)s1;
-    const uint8_t* p2 = (const uint8_t*)s1;
-
-    for (size_t i = 0; i < n; i++) {
-        if (p1[i] != p2[i]) {
-            return (int)(p1[i] - p2[i]);
-        }
-    }
-    return 0;
-}
-
-void* memmove(void* dest, const void* src, size_t n) {
-    uint8_t* pdest = (uint8_t*)dest;
-    const uint8_t* psrc = (const uint8_t*)src;
-
-    if (src > dest) {
-        for (size_t i = 0; i < n; i++) {
-            pdest[i] = psrc[i];
-        }
-    }
-    else if (src < dest) {
-        for (size_t i = n; i != 0; i--) {
-            pdest[i - 1] = psrc[i - 1];
-        }
-    }
-    return dest;
-}
+// --- REMOVED ---
+// The mem* functions (memcpy, memset, etc.)
+// have been moved to src/string.c
+// --- END REMOVED ---
 
 // Halt and catch fire function
 static void hcf(void) {
@@ -98,38 +52,48 @@ static void hcf(void) {
 
 // The following will be our kernel's entry point.
 void _start(void) {
-    // --- 1. Initialize Serial Port ---
+    // --- 1. Init Serial (for debugging) ---
     serial_init();
     serial_write_string("Hello, Serial World!\n");
 
-    // --- 2. Initialize GDT ---
+    // --- 2. Initialize core systems ---
     gdt_init();
+    idt_init();
+    pic_remap_and_init();
+    serial_write_string("PIC remapped!\n");
 
-    // --- 3. Initialize IDT ---
-    idt_init();     // <<< 2. CALL THE IDT INIT FUNCTION
-
-    // --- 4. Enable Interrupts ---
-    sti();          // <<< 3. ENABLE INTERRUPTS
-    serial_write_string("Interrupts enabled!\n");
-
-    // Ensure we got a framebuffer.
+    // --- 3. Initialize Framebuffer ---
     if (framebuffer_request.response == NULL
         || framebuffer_request.response->framebuffer_count < 1) {
-        serial_write_string("ERROR: No framebuffer.\n");
+        serial_write_string("ERROR: No framebuffer available.\n");
         hcf();
     }
-
+    
+    // Get the first framebuffer
     struct limine_framebuffer* framebuffer = framebuffer_request.response->framebuffers[0];
+    
+    // Initialize our framebuffer console
+    fb_init(framebuffer);
+    
+    // --- 4. Enable Interrupts ---
+    sti();
+    serial_write_string("Interrupts enabled!\n");
 
-    // Draw the diagonal line
-    uint32_t* fb_ptr = framebuffer->address;
-    for (size_t i = 0; i < 100; i++) {
-        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff; // White
+    // --- 5. Test our framebuffer! ---
+    fb_print("Hello, Framebuffer World!\n");
+    fb_print("This is on a new line. You can now type!\n");
+    fb_set_color(0x00AAAAFF); // Light blue
+    fb_print("This is in a different color.\n");
+    fb_set_color(0xFFFFFFFF); // Back to white
+    fb_print("ABCDEFGHIJKLMNOPQRSTUVWXYZ\n");
+    fb_print("abcdefghijklmnopqrstuvwxyz\n");
+    fb_print("0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~\n");
+
+
+    // --- 6. The idle loop ---
+    serial_write_string("Kernel main loop reached. Idling...\n");
+    for (;;) {
+        __asm__ volatile ("sti; hlt");
     }
-
-    serial_write_string("Drew to framebuffer.\n");
-
-    // We're done, just hang...
-    serial_write_string("Kernel main task finished. Halting.\n");
-    hcf();
 }
+

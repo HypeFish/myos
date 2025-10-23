@@ -4,6 +4,7 @@
 
 .section .text
 
+# --- Exception (ISR) Section ---
 # Make these functions visible to C code
 .global load_idt
 .global isr_stub_0   # Divide by zero
@@ -14,6 +15,27 @@
 # Declare the C function we will call
 .extern exception_handler
 
+# --- NEW: IRQ (Hardware Interrupt) Section ---
+.global irq_stub_32 # Timer
+.global irq_stub_33 # Keyboard
+.global irq_stub_34
+.global irq_stub_35
+.global irq_stub_36
+.global irq_stub_37
+.global irq_stub_38
+.global irq_stub_39
+.global irq_stub_40
+.global irq_stub_41
+.global irq_stub_42
+.global irq_stub_43
+.global irq_stub_44
+.global irq_stub_45
+.global irq_stub_46
+.global irq_stub_47
+
+.extern irq_handler # New C handler for hardware IRQs
+# --- END NEW ---
+
 # void load_idt(struct idt_descriptor *desc);
 # The first argument is passed in the RDI register.
 load_idt:
@@ -21,20 +43,13 @@ load_idt:
     lidt [rdi]
     ret
 
-# --- Interrupt Stubs ---
-# This is a macro to make it easy to create all 32 stubs.
-# It handles pushing a dummy error code for exceptions that don't
-# provide one, so the stack is consistent.
-
+# --- Exception Stubs (ISR) ---
 .macro ISR_STUB_NO_ERR vector
     # This stub is for interrupts that DO NOT push an error code (like \vector)
     .global isr_stub_\vector
     isr_stub_\vector:
         cli             # Disable interrupts
         push 0          # Push a dummy error code
-        # --- MODIFICATION ---
-        # Removed the '$' from '$\vector'. In intel_syntax noprefix,
-        # immediate values do not use a '$'.
         push \vector    # Push the interrupt number (immediate value)
         jmp common_isr_stub
 .endm
@@ -45,15 +60,11 @@ load_idt:
     isr_stub_\vector:
         cli             # Disable interrupts
         # Error code is already on the stack
-        # --- MODIFICATION ---
-        # Removed the '$' from '$\vector'.
         push \vector    # Push the interrupt number (immediate value)
         jmp common_isr_stub
 .endm
 
-
 # Create stubs for the first 32 exceptions
-# (The macro calls themselves are correct)
 ISR_STUB_NO_ERR 0   # 0: Divide by Zero
 ISR_STUB_NO_ERR 1   # 1: Debug
 ISR_STUB_NO_ERR 2   # 2: NMI
@@ -87,7 +98,7 @@ ISR_STUB_NO_ERR 31  # 31: (Reserved)
 isr_stub_default:
     cli
     push 0  # No error code
-    push 255 # A special vector number for "unknown" (already correct)
+    push 255 # A special vector number for "unknown"
     jmp common_isr_stub
 
 common_isr_stub:
@@ -137,3 +148,77 @@ common_isr_stub:
     # Return from interrupt
     iretq
 
+# --- NEW: Hardware Interrupt Stubs (IRQ) ---
+# We use a separate macro and common stub for clarity
+.macro IRQ_STUB vector
+    .global irq_stub_\vector
+    irq_stub_\vector:
+        cli             # Disable interrupts
+        push 0          # Push a dummy error code (IRQs don't have one)
+        push \vector    # Push the interrupt number (32-47)
+        jmp common_irq_stub
+.endm
+
+# Create stubs for all 16 IRQs (vectors 32-47)
+IRQ_STUB 32
+IRQ_STUB 33
+IRQ_STUB 34
+IRQ_STUB 35
+IRQ_STUB 36
+IRQ_STUB 37
+IRQ_STUB 38
+IRQ_STUB 39
+IRQ_STUB 40
+IRQ_STUB 41
+IRQ_STUB 42
+IRQ_STUB 43
+IRQ_STUB 44
+IRQ_STUB 45
+IRQ_STUB 46
+IRQ_STUB 47
+
+common_irq_stub:
+    # Save all general-purpose registers
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    # Call the C handler.
+    mov rdi, rsp
+    call irq_handler # Call the new C handler for IRQs
+
+    # Restore all registers
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+
+    # Pop the interrupt number and error code
+    add rsp, 16
+
+    # Return from interrupt
+    iretq
+# --- END NEW ---

@@ -24,7 +24,7 @@ override CFLAGS += \
     -mno-red-zone \
     -mcmodel=kernel \
     -g \
-    -Wno-unused-function # Add this to ignore unused static inline functions (like cli)
+    -Wno-unused-function # Added this to quiet warnings
 
 override CPPFLAGS += \
     -I src \
@@ -41,15 +41,14 @@ override LDFLAGS += \
     -T linker.lds
 
 # --- Find Source Files ---
+# This `find` command will automatically pick up src/pic.c
 CFILES := $(shell find -L src -type f -name '*.c' 2>/dev/null | LC_ALL=C sort)
-# <<< MODIFICATION: Add idt_asm.S to the ASFILES list
 ASFILES := $(shell find -L src -type f -name '*.S' 2>/dev/null | LC_ALL=C sort)
 
 COBJ := $(patsubst src/%.c, obj/%.o, $(CFILES))
 ASOBJ := $(patsubst src/%.S, obj/%.o, $(ASFILES))
 OBJ := $(COBJ) $(ASOBJ)
-# <<< MODIFICATION: Include .d files from .S files as well, in case of .incbin or future needs
-HEADER_DEPS := $(patsubst src/%.c, obj/%.d, $(CFILES)) $(patsubst src/%.S, obj/%.d, $(ASFILES))
+HEADER_DEPS := $(patsubst src/%.c, obj/%.d, $(CFILES))
 
 # --- Build Rules ---
 
@@ -59,6 +58,7 @@ all: bin/$(OUTPUT)
 
 -include $(HEADER_DEPS)
 
+# This rule links all .o files found in $(OBJ)
 bin/$(OUTPUT): linker.lds $(OBJ)
 	@mkdir -p "$(dir $@)"
 	$(LD) $(LDFLAGS) $(OBJ) -o $@

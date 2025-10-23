@@ -2,6 +2,7 @@
     "files.associations": {
         ".fantomasignore": "ignore",
         "*.rmd": "markdown",
-        "cstdint": "cpp"
+        "cstdint": "cpp",
+        "font.h": "c"
     }
 }
