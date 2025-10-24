@@ -5,6 +5,8 @@
         "cstdint": "cpp",
         "font.h": "c",
         "font_8x16.h": "c",
-        "framebuffer.h": "c"
+        "framebuffer.h": "c",
+        "string.h": "c",
+        "serialport.h": "c"
     }
 }

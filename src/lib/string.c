@@ -49,3 +49,69 @@ void* memmove(void* dest, const void* src, size_t n) {
     }
     return dest;
 }
+
+size_t strlen(const char* s) {
+    size_t len = 0;
+    while (s[len] != '\0') {
+        len++;
+    }
+    return len;
+}
+
+char* strcpy(char* dest, const char* src) {
+    char* original_dest = dest;
+    while ((*dest++ = *src++) != '\0');
+    return original_dest;
+}
+
+char* strcat(char* dest, const char* src) {
+    char* original_dest = dest;
+    while (*dest != '\0') {
+        dest++;
+    }
+    while ((*dest++ = *src++) != '\0');
+    return original_dest;
+}
+
+int strcmp(const char* s1, const char* s2) {
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    return (unsigned char)(*s1) - (unsigned char)(*s2);
+}
+
+char* strchr(const char* s, int c) {
+    while (*s != '\0') {
+        if (*s == (char)c) {
+            return (char*)s;
+        }
+        s++;
+    }
+    return NULL;
+}
+
+char* strrchr(const char* s, int c) {
+    const char* last = NULL;
+    while (*s != '\0') {
+        if (*s == (char)c) {
+            last = s;
+        }
+        s++;
+    }
+    return (char*)last;
+}
+size_t strcspn(const char* s, const char* reject) {
+    size_t len = 0;
+    while (s[len] != '\0') {
+        const char* r = reject;
+        while (*r != '\0') {
+            if (s[len] == *r) {
+                return len;
+            }
+            r++;
+        }
+        len++;
+    }
+    return len;
+}

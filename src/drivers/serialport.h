@@ -7,5 +7,6 @@
 
 void serial_init(void);
 void serial_write_string(const char* s);
+void serial_putchar(char c);
 
 #endif // __SERIALPORT_H__

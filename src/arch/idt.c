@@ -3,8 +3,18 @@
 #include <stddef.h>     // For NULL
 #include "pic.h"        // For pic_send_eoi()
 #include "io.h"         // For inb()
-#include "framebuffer.h"  // <-- CHANGED: Include framebuffer
-#include "keyboard.h"     // <-- CHANGED: Include our new scancode map
+#include "framebuffer.h"  // For fb_putchar
+#include "keyboard.h"     // For kbd_us_map
+#include "string.h"       // For strcmp
+
+// --- NEW: Shell buffer ---
+static char line_buffer[256];
+static int buffer_index = 0;
+#define MAX_BUFFER 255
+
+// --- NEW: Extern function (will live in main.c) ---
+extern void shell_execute(const char *cmd);
+
 
 // --- Define the IDT array (256 entries) ---
 static struct InterruptDescriptor64 idt[256];
@@ -81,7 +91,6 @@ static void* irq_stubs[] = {
 
 
 // --- Helper function to set an IDT entry ---
-// This fills in the InterruptDescriptor64 struct.
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
     struct InterruptDescriptor64* descriptor = &idt[vector];
     uint64_t isr_address = (uint64_t)isr;
@@ -96,9 +105,6 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
 }
 
 // --- The C-level exception handler ---
-// This is called by the common_isr_stub in idt_asm.S
-
-// This struct must match the order of registers we pushed in idt_asm.S!
 struct registers {
     // Registers pushed by 'common_isr_stub' / 'common_irq_stub'
     uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
@@ -109,71 +115,76 @@ struct registers {
     uint64_t rip, cs, rflags, rsp, ss;
 };
 
-// The C handler function for exceptions (ISRs)
 void __attribute__((used))exception_handler(struct registers* regs) {
-    // For now, just print the interrupt number to the serial port
+    // (This function is unchanged)
     serial_write_string("Exception triggered: ");
-
-    // Simple int-to-char for debugging.
     if (regs->int_no < 10) {
         char c[2] = { (char)(regs->int_no + '0'), '\0' };
         serial_write_string(c);
     } else if (regs->int_no < 32) {
-        // Handle 10-31 (basic two digits)
         char c[3];
         c[0] = (char)((regs->int_no / 10) + '0');
         c[1] = (char)((regs->int_no % 10) + '0');
         c[2] = '\0';
         serial_write_string(c);
     }
-    
     serial_write_string(" Error Code: ");
     char ec[2] = { (char)(regs->err_code + '0'), '\0' };
     serial_write_string(ec);
     serial_write_string("\n");
-
-    // In a real OS, you would panic here ("Blue Screen of Death")
     serial_write_string("System Halted!\n");
-    __asm__ volatile ("cli; hlt"); // Clear interrupts and halt the system
+    __asm__ volatile ("cli; hlt");
 }
 
 
 // --- C-level Hardware Interrupt Handler (IRQ) ---
-// This is called by the common_irq_stub in idt_asm.S
 void __attribute__((used))irq_handler(struct registers* regs) {
-    // Figure out which IRQ number this is (vector - 32)
     uint8_t irq = regs->int_no - 32;
 
     switch (irq) {
         case 0: // Timer (IRQ 0)
-            // This will get very spammy if you print!
-            // We'll leave it silent for now.
-            // serial_write_string("T");
             break;
         
-        // <-- ENTIRE KEYBOARD CASE IS CHANGED ---
+        // --- THIS IS THE MAIN CHANGE ---
         case 1: // Keyboard (IRQ 1)
         {
-            // Read the scancode from the keyboard data port (0x60)
             uint8_t scancode = inb(0x60);
             
-            // We only care about key-press events (scancode < 0x80)
-            // Scancodes >= 0x80 are key-release events
-            if (scancode < 0x80) {
-                // Translate the scancode to an ASCII character
-                char c = kbd_us_map[scancode];
-                
-                // If it's a printable character, print it
-                if (c != 0) {
-                    fb_putchar(c);
+            // Ignore key releases
+            if (scancode >= 0x80) {
+                break;
+            }
+
+            // Translate scancode
+            char c = kbd_us_map[scancode];
+
+            if (c == '\n') {
+                // --- ENTER KEY ---
+                fb_putchar('\n');
+                line_buffer[buffer_index] = '\0'; // Null-terminate
+                shell_execute(line_buffer);      // Process command
+                buffer_index = 0;                  // Reset buffer
+                fb_print("> ");                    // Print new prompt
+            } else if (c == '\b') {
+                // --- BACKSPACE KEY ---
+                if (buffer_index > 0) {
+                    buffer_index--;
+                    fb_putchar('\b'); // fb_putchar handles the erase
+                }
+            } else if (c != 0) {
+                // --- PRINTABLE CHAR ---
+                if (buffer_index < MAX_BUFFER) {
+                    line_buffer[buffer_index] = c;
+                    buffer_index++;
+                    fb_putchar(c); // Echo character to screen
                 }
             }
             break;
         }
-        // <-- END OF CHANGE ---
+        // --- END OF CHANGE ---
 
         default:
-            // Print a message for unhandled IRQs
+            // (This is unchanged)
             serial_write_string("Unhandled IRQ: ");
             if (irq < 10) {
                 char c[2] = { (char)(irq + '0'), '\0' };
@@ -189,29 +200,21 @@ void __attribute__((used))irq_handler(struct registers* regs) {
     // Send the End-of-Interrupt (EOI) signal to the PIC
     pic_send_eoi(irq);
 }
-// --- END NEW ---
 
 
 // --- IDT Initialization Function ---
-// This is the main function called from main.c
 void idt_init(void) {
+    // (This function is unchanged)
     serial_write_string("Initializing IDT...\n");
 
-    // Prepare the IDT descriptor
-    idt_desc.limit = sizeof(idt) - 1;      // Limit is size - 1
-    idt_desc.base = (uint64_t)&idt[0];     // Base address of the IDT array
+    idt_desc.limit = sizeof(idt) - 1;
+    idt_desc.base = (uint64_t)&idt[0];
 
-    // 0x8E = 0b10001110
-    //   P: 1 (Present)
-    // DPL: 0 (Ring 0 - Kernel)
-    //   S: 0 (System segment)
-    //Type: E (64-bit Interrupt Gate)
     uint8_t flags = 0x8E;
 
     // --- 1. Set up the exception handlers (vectors 0-31) ---
     for (uint8_t vector = 0; vector < 32; vector++) {
         if (isr_stubs[vector] != NULL) {
-            // Set the descriptor for this CPU exception
             idt_set_descriptor(vector, isr_stubs[vector], flags);
         }
     }
@@ -226,8 +229,6 @@ void idt_init(void) {
         idt_set_descriptor(vector, &isr_stub_default, flags);
     }
 
-    // Load the IDT using our assembly function
     load_idt(&idt_desc);
-
     serial_write_string("IDT loaded!\n");
 }

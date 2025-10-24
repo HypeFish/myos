@@ -6,8 +6,10 @@
 #include "gdt.h"
 #include "idt.h"
 #include "pic.h"
-#include "string.h"
+#include "lib/string.h"
 #include "framebuffer.h"
+#include "pmm.h"
+#include "heap.h"
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -44,6 +46,70 @@ static void hcf(void) {
     }
 }
 
+// Helper to print a hex address to the framebuffer
+static void fb_print_hex(uint64_t n) {
+    char hex_chars[] = "0123456789ABCDEF";
+    fb_print("0x");
+    for (int i = 60; i >= 0; i -= 4) {
+        char c = hex_chars[(n >> i) & 0xF];
+        fb_putchar(c);
+    }
+}
+
+void shell_execute(const char* command) {
+    if (strcmp(command, "help") == 0) {
+        fb_print("Welcome to myOS!\n");
+        fb_print("Available commands: help, clear, panic, alloc\n");
+    } else if (strcmp(command, "clear") == 0) {
+        fb_clear();
+    } else if (strcmp(command, "panic") == 0) {
+        fb_print("Triggering test panic (Divide by Zero).\n");
+        // This will trigger your exception_handler
+        volatile int zero = 0;
+        volatile int panic = 1 / zero;
+        (void)panic; // To avoid unused variable warning-
+    } else if (strcmp(command, "alloc") == 0) {
+        fb_print("Allocating one page...\n");
+        void* p = pmm_alloc_page();
+        if (p != NULL) {
+            fb_print("  Successfully allocated 4KiB at: ");
+            fb_print_hex((uint64_t)p);
+            fb_print("\n  Freeing it back...\n");
+            pmm_free_page(p);
+        } else {
+            fb_print("  Allocation failed! Out of memory.\n");
+        }
+    } else if (strcmp(command, "ktest") == 0) {
+        fb_print("Testing kernel heap (kmalloc)...\n");
+        
+        fb_print("  Allocating 30 bytes (a1)...\n");
+        void* a1 = kmalloc(30);
+        fb_print("  Allocated at: "); fb_print_hex((uint64_t)a1); fb_print("\n");
+
+        fb_print("  Allocating 500 bytes (a2)...\n");
+        void* a2 = kmalloc(500);
+        fb_print("  Allocated at: "); fb_print_hex((uint64_t)a2); fb_print("\n");
+
+        fb_print("  Freeing a1...\n");
+        kfree(a1);
+
+        fb_print("  Allocating 30 bytes (a3)...\n");
+        void* a3 = kmalloc(30);
+        fb_print("  Allocated at: "); fb_print_hex((uint64_t)a3); fb_print("\n");
+        
+        fb_print("  Freeing a2 and a3...\n");
+        kfree(a2);
+        kfree(a3);
+        
+        fb_print("Heap test complete.\n");
+    } else if (strcmp(command, "") == 0) {
+        // Do nothing on empty command
+    } else {
+        fb_print("Unknown command: ");
+        fb_print(command);
+        fb_print("\n");
+    }
+}
 
 // The following will be our kernel's entry point.
 void _start(void) {
@@ -69,22 +135,22 @@ void _start(void) {
     
     // Initialize our framebuffer console
     fb_init(framebuffer);
+    pmm_init(); // <-- 2. ADD THIS CALL
+    heap_init(); // <-- 3. ADD THIS CALL
     
     // --- 4. Enable Interrupts ---
     sti();
     serial_write_string("Interrupts enabled!\n");
+    fb_print("Welcome to myOS!\n");
 
-    // --- 5. Test our framebuffer! ---
-    fb_print("Hello, Framebuffer World!\n");
-    fb_print("This is a test of the framebuffer console.\n");
-    fb_print("Kernel initialized successfully.\n");
-    
-    
+    // --- NEW: Print the first shell prompt ---
+    fb_print("> ");
 
-    // --- 6. The idle loop ---
-    serial_write_string("Kernel main loop reached. Idling...\n");
     for (;;) {
         __asm__ volatile ("sti; hlt");
     }
-}
+    for (;;) {
+        __asm__ volatile ("sti; hlt");
+    }
+} 
 

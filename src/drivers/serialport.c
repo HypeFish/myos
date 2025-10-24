@@ -54,3 +54,7 @@ void serial_write_string(const char* s) {
 void serial_init(void) {
     init_serial();
 }
+
+void serial_putchar(char c) {
+    write_serial(c);
+}
