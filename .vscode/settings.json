@@ -3,6 +3,8 @@
         ".fantomasignore": "ignore",
         "*.rmd": "markdown",
         "cstdint": "cpp",
-        "font.h": "c"
+        "font.h": "c",
+        "font_8x16.h": "c",
+        "framebuffer.h": "c"
     }
 }

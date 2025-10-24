@@ -33,6 +33,11 @@ void fb_print(const char *s);
  */
 void fb_set_color(uint32_t c);
 
-#endif // __FRAMEBUFFER_H__
+/**
+ * @brief Sets the font scaling factor.
+ * @param new_scale The multiplier (e.g., 2 for 2x size).
+ */
+void fb_set_scale(uint32_t new_scale);
 
+#endif // __FRAMEBUFFER_H__
 

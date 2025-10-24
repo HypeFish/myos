@@ -6,8 +6,8 @@
 #include "gdt.h"
 #include "idt.h"
 #include "pic.h"
-#include "string.h"       // <-- NEW: Include our string header
-#include "framebuffer.h"  // <-- NEW: Include our framebuffer header
+#include "string.h"
+#include "framebuffer.h"
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -35,11 +35,6 @@ static volatile LIMINE_REQUESTS_START_MARKER;
 
 __attribute__((used, section(".limine_requests_end")))
 static volatile LIMINE_REQUESTS_END_MARKER;
-
-// --- REMOVED ---
-// The mem* functions (memcpy, memset, etc.)
-// have been moved to src/string.c
-// --- END REMOVED ---
 
 // Halt and catch fire function
 static void hcf(void) {
@@ -81,14 +76,10 @@ void _start(void) {
 
     // --- 5. Test our framebuffer! ---
     fb_print("Hello, Framebuffer World!\n");
-    fb_print("This is on a new line. You can now type!\n");
-    fb_set_color(0x00AAAAFF); // Light blue
-    fb_print("This is in a different color.\n");
-    fb_set_color(0xFFFFFFFF); // Back to white
-    fb_print("ABCDEFGHIJKLMNOPQRSTUVWXYZ\n");
-    fb_print("abcdefghijklmnopqrstuvwxyz\n");
-    fb_print("0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~\n");
-
+    fb_print("This is a test of the framebuffer console.\n");
+    fb_print("Kernel initialized successfully.\n");
+    
+    
 
     // --- 6. The idle loop ---
     serial_write_string("Kernel main loop reached. Idling...\n");
