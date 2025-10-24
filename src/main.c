@@ -9,7 +9,10 @@
 #include "lib/string.h"
 #include "framebuffer.h"
 #include "pmm.h"
+#include "vmm.h"
 #include "heap.h"
+#include "pit.h"
+#include "timer.h"
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -29,6 +32,21 @@ framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST,
     .revision = 0
 };
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_memmap_request
+memmap_request = {
+    .id = LIMINE_MEMMAP_REQUEST,
+    .revision = 0
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_kernel_address_request
+kernel_address_request = {
+    .id = LIMINE_KERNEL_ADDRESS_REQUEST,
+    .revision = 0
+};
+
 
 // Finally, define the start and end markers for the Limine requests.
 // These can also be moved anywhere, to any .c file, as seen fit.
@@ -102,6 +120,12 @@ void shell_execute(const char* command) {
         kfree(a3);
         
         fb_print("Heap test complete.\n");
+    } else if (strcmp(command, "uptime") == 0) {
+        uint64_t current_ticks = get_ticks();
+        fb_print("Kernel ticks since boot: ");
+        fb_print_hex(current_ticks);
+        fb_print("\n");
+        fb_print("(Note: At 100Hz, 0x64 ticks = 1 second)\n");
     } else if (strcmp(command, "") == 0) {
         // Do nothing on empty command
     } else {
@@ -109,6 +133,20 @@ void shell_execute(const char* command) {
         fb_print(command);
         fb_print("\n");
     }
+}
+
+struct limine_framebuffer* global_framebuffer = NULL;
+
+struct limine_memmap_response* vmm_get_memmap(void) {
+    return memmap_request.response;
+}
+
+struct limine_kernel_address_response* vmm_get_kernel_address(void) {
+    return kernel_address_request.response;
+}
+
+struct limine_framebuffer* vmm_get_framebuffer(void) {
+    return global_framebuffer;
 }
 
 // The following will be our kernel's entry point.
@@ -122,6 +160,7 @@ void _start(void) {
     idt_init();
     pic_remap_and_init();
     serial_write_string("PIC remapped!\n");
+    pit_init(100); // Initialize PIT to 100Hz
 
     // --- 3. Initialize Framebuffer ---
     if (framebuffer_request.response == NULL
@@ -130,14 +169,14 @@ void _start(void) {
         hcf();
     }
     
-    // Get the first framebuffer
-    struct limine_framebuffer* framebuffer = framebuffer_request.response->framebuffers[0];
-    
-    // Initialize our framebuffer console
-    fb_init(framebuffer);
-    pmm_init(); // <-- 2. ADD THIS CALL
-    heap_init(); // <-- 3. ADD THIS CALL
-    
+    global_framebuffer = framebuffer_request.response->framebuffers[0];
+
+    vmm_init(); // Virtual Memory Manager
+    serial_write_string("VMM Phase 1b complete. New page map is active.\n");
+    pmm_init(memmap_request.response); // Physical Memory Manager
+    heap_init(); // Kernel Heap
+    fb_init(global_framebuffer);
+
     // --- 4. Enable Interrupts ---
     sti();
     serial_write_string("Interrupts enabled!\n");
@@ -146,9 +185,6 @@ void _start(void) {
     // --- NEW: Print the first shell prompt ---
     fb_print("> ");
 
-    for (;;) {
-        __asm__ volatile ("sti; hlt");
-    }
     for (;;) {
         __asm__ volatile ("sti; hlt");
     }

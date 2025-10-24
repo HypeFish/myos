@@ -6,13 +6,6 @@
 // We will be managing memory in 4KiB pages.
 #define PAGE_SIZE 4096
 
-// --- The Limine Memory Map Request ---
-__attribute__((used, section(".limine_requests")))
-static volatile struct limine_memmap_request memmap_request = {
-    .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0
-};
-
 // --- PMM State ---
 static uint8_t* bitmap = NULL;
 static uint64_t total_pages = 0;
@@ -53,12 +46,11 @@ static void serial_print_hex(uint64_t n) {
     }
 }
 
-void pmm_init(void) {
-    serial_write_string("Initializing PMM...\n");
+void pmm_init(struct limine_memmap_response *memmap_response) {
+    // serial_write_string("Initializing PMM...\n");
 
-    struct limine_memmap_response *memmap_response = memmap_request.response;
     if (memmap_response == NULL) {
-        serial_write_string("ERROR: No memory map from Limine.\n");
+        // serial_write_string("ERROR: No memory map from Limine.\n");
         return;
     }
 
@@ -78,9 +70,9 @@ void pmm_init(void) {
     // We need 1 bit per page. 8 bits per byte.
     bitmap_size_in_bytes = (total_pages / 8) + 1;
 
-    serial_write_string("  Highest address: "); serial_print_hex(highest_address); serial_write_string("\n");
-    serial_write_string("  Total pages: "); serial_print_hex(total_pages); serial_write_string("\n");
-    serial_write_string("  Bitmap size: "); serial_print_hex(bitmap_size_in_bytes); serial_write_string(" bytes\n");
+    // serial_write_string("  Highest address: "); serial_print_hex(highest_address); serial_write_string("\n");
+    // serial_write_string("  Total pages: "); serial_print_hex(total_pages); serial_write_string("\n");
+    // serial_write_string("  Bitmap size: "); serial_print_hex(bitmap_size_in_bytes); serial_write_string(" bytes\n");
 
     // --- 2. Loop 2: Find a large enough [Usable] region to store the bitmap ---
     for (uint64_t i = 0; i < memmap_response->entry_count; i++) {
@@ -92,13 +84,13 @@ void pmm_init(void) {
             // Mark the entire bitmap as "used" (all 1s) by default
             memset(bitmap, 0xFF, bitmap_size_in_bytes);
             
-            serial_write_string("  Bitmap placed at: "); serial_print_hex((uint64_t)bitmap); serial_write_string("\n");
+            // serial_write_string("  Bitmap placed at: "); serial_print_hex((uint64_t)bitmap); serial_write_string("\n");
             break;
         }
     }
 
     if (bitmap == NULL) {
-        serial_write_string("ERROR: No suitable memory region found for bitmap!\n");
+        // serial_write_string("ERROR: No suitable memory region found for bitmap!\n");
         return;
     }
 
@@ -125,7 +117,7 @@ void pmm_init(void) {
         bitmap_set(bitmap_base_page + i);
     }
 
-    serial_write_string("PMM: Bitmap initialized. Free pages are now marked.\n");
+    // serial_write_string("PMM: Bitmap initialized. Free pages are now marked.\n");
 }
 
 /**
@@ -153,7 +145,6 @@ void* pmm_alloc_page(void) {
     }
 
     // No free pages
-    serial_write_string("ERROR: pmm_alloc_page() -> Out of memory!\n");
     return NULL;
 }
 
@@ -165,12 +156,10 @@ void pmm_free_page(void* p) {
 
     uint64_t page_index = (uint64_t)p / PAGE_SIZE;
     if (page_index >= total_pages) {
-        serial_write_string("ERROR: pmm_free_page() -> Invalid address\n");
         return;
     }
 
     if (!bitmap_test(page_index)) {
-        serial_write_string("WARNING: pmm_free_page() -> Page was already free\n");
     }
 
     bitmap_clear(page_index);

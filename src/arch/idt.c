@@ -6,15 +6,21 @@
 #include "framebuffer.h"  // For fb_putchar
 #include "keyboard.h"     // For kbd_us_map
 #include "string.h"       // For strcmp
+#include "timer.h"
 
 // --- NEW: Shell buffer ---
 static char line_buffer[256];
 static int buffer_index = 0;
 #define MAX_BUFFER 255
 
+static volatile uint64_t ticks = 0;
+
 // --- NEW: Extern function (will live in main.c) ---
 extern void shell_execute(const char *cmd);
 
+uint64_t get_ticks(void) {
+    return ticks;
+}
 
 // --- Define the IDT array (256 entries) ---
 static struct InterruptDescriptor64 idt[256];
@@ -143,9 +149,11 @@ void __attribute__((used))irq_handler(struct registers* regs) {
 
     switch (irq) {
         case 0: // Timer (IRQ 0)
+        {
+            ticks++;
             break;
+        }
         
-        // --- THIS IS THE MAIN CHANGE ---
         case 1: // Keyboard (IRQ 1)
         {
             uint8_t scancode = inb(0x60);

@@ -7,6 +7,9 @@
         "font_8x16.h": "c",
         "framebuffer.h": "c",
         "string.h": "c",
-        "serialport.h": "c"
+        "serialport.h": "c",
+        "pit.h": "c",
+        "stdint.h": "c",
+        "vmm.h": "c"
     }
 }

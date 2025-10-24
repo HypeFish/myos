@@ -2,13 +2,14 @@
 #define __PMM_H__
 
 #include <stdint.h>
+#include <limine.h>
 
 /**
  * @brief Initializes the Physical Memory Manager (PMM).
  * This function finds the available memory from the bootloader and
  * sets up the bitmap allocator.
  */
-void pmm_init(void);
+void pmm_init(struct limine_memmap_response *memmap);
 
 /**
  * @brief Allocates a single 4KiB page of physical memory.

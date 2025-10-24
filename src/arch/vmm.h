@@ -1,0 +1,19 @@
+#ifndef __VMM_H__
+#define __VMM_H__
+
+#include "paging.h"
+#include <limine.h> // <-- ADD THIS
+
+// --- ADD THESE ---
+// These functions will be implemented in main.c
+struct limine_memmap_response* vmm_get_memmap(void);
+struct limine_kernel_address_response* vmm_get_kernel_address(void);
+struct limine_framebuffer* vmm_get_framebuffer(void);
+
+/**
+ * @brief Initializes the Virtual Memory Manager (VMM).
+ * ... (rest of comment) ...
+ */
+void vmm_init(void);
+
+#endif // __VMM_H__
