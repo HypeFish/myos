@@ -27,7 +27,10 @@ override CFLAGS += \
     -Wno-unused-function # Added this to quiet warnings
 
 override CPPFLAGS += \
-    -I src \
+    -I src/include \
+    -I src/arch \
+    -I src/drivers \
+    -I src/lib \
     -DLIMINE_API_REVISION=3 \
     -MMD \
     -MP

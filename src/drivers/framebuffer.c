@@ -15,6 +15,7 @@ static int cols, rows;              // Screen dimensions in characters
 static int cursor_x, cursor_y;      // Cursor position in characters (e.g., 0,0)
 static uint32_t color = 0xFFFFFFFF; // Default to white
 static uint32_t font_scale = 1;     // Store the current font scale
+#define TAB_WIDTH 4           
 
 /**
  * @brief Plots a single pixel.
@@ -24,6 +25,21 @@ static void fb_plot_pixel(int x, int y, uint32_t c) {
         return;
     }
     fb_addr[y * (pitch / 4) + x] = c;
+}
+
+/**
+ * @brief Draws a solid black rectangle at a given character position.
+ */
+static void fb_clear_char_at(int cx, int cy) {
+    int pixel_x = cx * char_width;
+    int pixel_y = cy * char_height;
+
+    // Loop for the scaled height and width of the character
+    for (int y = 0; y < char_height; y++) {
+        for (int x = 0; x < char_width; x++) {
+            fb_plot_pixel(pixel_x + x, pixel_y + y, 0x00000000); // 0 = black
+        }
+    }
 }
 
 /**
@@ -98,7 +114,29 @@ void fb_putchar(char c) {
     if (c == '\n') {
         cursor_x = 0;
         cursor_y++;
-    } else if (c >= 0 && c < 128) { // Only print valid ASCII
+    } else if (c == '\b') { // <-- ADD THIS ELSE-IF BLOCK
+        // Handle backspace
+        if (cursor_x > 0) {
+            cursor_x--;
+            fb_clear_char_at(cursor_x, cursor_y);
+            
+            // This is optional, but nice:
+            // Clear the character at the new cursor position
+            // (We just re-draw a space)
+            // Note: This is a bit of a hack. A better way would be
+            // to have a fb_draw_char_at() function.
+            // For now, let's just move the cursor.
+            
+            // To properly "erase", you'd re-draw the character
+            // at the new (cursor_x, cursor_y) with a black background.
+            // For a transparent background, just moving back is fine.
+        }
+    } else if (c == '\t') { // <-- ADD THIS ELSE-IF BLOCK
+        // Handle tab
+        cursor_x = (cursor_x + TAB_WIDTH) & ~(TAB_WIDTH - 1);
+        // This is a bitwise trick equivalent to:
+        // cursor_x = cursor_x + (TAB_WIDTH - (cursor_x % TAB_WIDTH));
+    } else if (c >= 32 && c < 128) { // Only print valid ASCII
         
         // Get the glyph data from the FONT_DATA array
         // Each char is FONT_HEIGHT (16) bytes

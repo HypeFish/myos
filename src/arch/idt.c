@@ -3,6 +3,8 @@
 #include <stddef.h>     // For NULL
 #include "pic.h"        // For pic_send_eoi()
 #include "io.h"         // For inb()
+#include "framebuffer.h"  // <-- CHANGED: Include framebuffer
+#include "keyboard.h"     // <-- CHANGED: Include our new scancode map
 
 // --- Define the IDT array (256 entries) ---
 static struct InterruptDescriptor64 idt[256];
@@ -108,7 +110,6 @@ struct registers {
 };
 
 // The C handler function for exceptions (ISRs)
-// --- MODIFICATION: Added __attribute__((used)) ---
 void __attribute__((used))exception_handler(struct registers* regs) {
     // For now, just print the interrupt number to the serial port
     serial_write_string("Exception triggered: ");
@@ -139,7 +140,6 @@ void __attribute__((used))exception_handler(struct registers* regs) {
 
 // --- C-level Hardware Interrupt Handler (IRQ) ---
 // This is called by the common_irq_stub in idt_asm.S
-// --- MODIFICATION: Added __attribute__((used)) ---
 void __attribute__((used))irq_handler(struct registers* regs) {
     // Figure out which IRQ number this is (vector - 32)
     uint8_t irq = regs->int_no - 32;
@@ -150,20 +150,28 @@ void __attribute__((used))irq_handler(struct registers* regs) {
             // We'll leave it silent for now.
             // serial_write_string("T");
             break;
+        
+        // <-- ENTIRE KEYBOARD CASE IS CHANGED ---
         case 1: // Keyboard (IRQ 1)
         {
             // Read the scancode from the keyboard data port (0x60)
-            // We MUST do this, or the keyboard won't send another interrupt.
             uint8_t scancode = inb(0x60);
             
-            // For now, just print "K" and the scancode in hex
-            serial_write_string("K(");
-            char hex_chars[] = "0123456789ABCDEF";
-            char sc_hex[3] = { hex_chars[(scancode >> 4) & 0x0F], hex_chars[scancode & 0x0F], '\0' };
-            serial_write_string(sc_hex);
-            serial_write_string(") ");
+            // We only care about key-press events (scancode < 0x80)
+            // Scancodes >= 0x80 are key-release events
+            if (scancode < 0x80) {
+                // Translate the scancode to an ASCII character
+                char c = kbd_us_map[scancode];
+                
+                // If it's a printable character, print it
+                if (c != 0) {
+                    fb_putchar(c);
+                }
+            }
             break;
         }
+        // <-- END OF CHANGE ---
+
         default:
             // Print a message for unhandled IRQs
             serial_write_string("Unhandled IRQ: ");
@@ -190,13 +198,13 @@ void idt_init(void) {
     serial_write_string("Initializing IDT...\n");
 
     // Prepare the IDT descriptor
-    idt_desc.limit = sizeof(idt) - 1;       // Limit is size - 1
-    idt_desc.base = (uint64_t)&idt[0];      // Base address of the IDT array
+    idt_desc.limit = sizeof(idt) - 1;      // Limit is size - 1
+    idt_desc.base = (uint64_t)&idt[0];     // Base address of the IDT array
 
     // 0x8E = 0b10001110
     //   P: 1 (Present)
     // DPL: 0 (Ring 0 - Kernel)
-    //   S: 0 (System segment) -> This is a bit ambiguous, should be 0 for Interrupt/Trap Gates
+    //   S: 0 (System segment)
     //Type: E (64-bit Interrupt Gate)
     uint8_t flags = 0x8E;
 
@@ -208,7 +216,7 @@ void idt_init(void) {
         }
     }
 
-    // --- 2. NEW: Set up the hardware IRQ handlers (vectors 32-47) ---
+    // --- 2. Set up the hardware IRQ handlers (vectors 32-47) ---
     for (uint8_t vector = 0; vector < 16; vector++) {
         idt_set_descriptor(vector + 32, irq_stubs[vector], flags);
     }
@@ -223,4 +231,3 @@ void idt_init(void) {
 
     serial_write_string("IDT loaded!\n");
 }
-
