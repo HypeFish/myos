@@ -77,16 +77,19 @@ static void fb_print_hex(uint64_t n) {
 void shell_execute(const char* command) {
     if (strcmp(command, "help") == 0) {
         fb_print("Welcome to myOS!\n");
-        fb_print("Available commands: help, clear, panic, alloc\n");
-    } else if (strcmp(command, "clear") == 0) {
+        fb_print("Available commands: help, clear, panic, alloc, ktest, uptime\n");
+    }
+    else if (strcmp(command, "clear") == 0) {
         fb_clear();
-    } else if (strcmp(command, "panic") == 0) {
+    }
+    else if (strcmp(command, "panic") == 0) {
         fb_print("Triggering test panic (Divide by Zero).\n");
         // This will trigger your exception_handler
         volatile int zero = 0;
         volatile int panic = 1 / zero;
         (void)panic; // To avoid unused variable warning-
-    } else if (strcmp(command, "alloc") == 0) {
+    }
+    else if (strcmp(command, "alloc") == 0) {
         fb_print("Allocating one page...\n");
         void* p = pmm_alloc_page();
         if (p != NULL) {
@@ -94,12 +97,14 @@ void shell_execute(const char* command) {
             fb_print_hex((uint64_t)p);
             fb_print("\n  Freeing it back...\n");
             pmm_free_page(p);
-        } else {
+        }
+        else {
             fb_print("  Allocation failed! Out of memory.\n");
         }
-    } else if (strcmp(command, "ktest") == 0) {
+    }
+    else if (strcmp(command, "ktest") == 0) {
         fb_print("Testing kernel heap (kmalloc)...\n");
-        
+
         fb_print("  Allocating 30 bytes (a1)...\n");
         void* a1 = kmalloc(30);
         fb_print("  Allocated at: "); fb_print_hex((uint64_t)a1); fb_print("\n");
@@ -114,21 +119,24 @@ void shell_execute(const char* command) {
         fb_print("  Allocating 30 bytes (a3)...\n");
         void* a3 = kmalloc(30);
         fb_print("  Allocated at: "); fb_print_hex((uint64_t)a3); fb_print("\n");
-        
+
         fb_print("  Freeing a2 and a3...\n");
         kfree(a2);
         kfree(a3);
-        
+
         fb_print("Heap test complete.\n");
-    } else if (strcmp(command, "uptime") == 0) {
+    }
+    else if (strcmp(command, "uptime") == 0) {
         uint64_t current_ticks = get_ticks();
         fb_print("Kernel ticks since boot: ");
         fb_print_hex(current_ticks);
         fb_print("\n");
         fb_print("(Note: At 100Hz, 0x64 ticks = 1 second)\n");
-    } else if (strcmp(command, "") == 0) {
+    }
+    else if (strcmp(command, "") == 0) {
         // Do nothing on empty command
-    } else {
+    }
+    else {
         fb_print("Unknown command: ");
         fb_print(command);
         fb_print("\n");
@@ -167,12 +175,12 @@ void _start(void) {
         serial_write_string("ERROR: No framebuffer available.\n");
         hcf();
     }
-    
+
     if (kernel_address_request.response == NULL) {
         serial_write_string("ERROR: Failed to get kernel address.\n");
         hcf();
     }
-    
+
     if (memmap_request.response == NULL) {
         serial_write_string("ERROR: Failed to get memory map.\n");
         hcf();
@@ -184,16 +192,16 @@ void _start(void) {
     // NOW it is safe to call vmm_init
     vmm_init(); // Virtual Memory Manager
     serial_write_string("VMM Phase 1b complete. New page map is active.\n");
-    
+
     // NOW it is safe to call pmm_init
     pmm_init(memmap_request.response); // Physical Memory Manager
-    
+
     heap_init(); // Kernel Heap
     fb_init(global_framebuffer);
 
     // --- 5. Enable Interrupts & Enter Idle Loop ---
     pit_init(100); // Initialize PIT to 100Hz
-    
+
     serial_write_string("Interrupts enabled!\n");
     fb_print("Welcome to myOS!\n");
     fb_print("> ");
