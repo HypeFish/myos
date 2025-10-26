@@ -11,6 +11,8 @@
         "pit.h": "c",
         "stdint.h": "c",
         "vmm.h": "c",
-        "pmm.h": "c"
+        "pmm.h": "c",
+        "heap.h": "c",
+        "task.h": "c"
     }
 }

@@ -8,7 +8,7 @@
  * @brief Initializes the framebuffer console.
  * @param fb_info A pointer to the limine_framebuffer struct.
  */
-void fb_init(struct limine_framebuffer *fb_info);
+void fb_init(struct limine_framebuffer* fb_info);
 
 /**
  * @brief Clears the screen to black.
@@ -25,7 +25,7 @@ void fb_putchar(char c);
  * @brief Prints a null-terminated string to the screen.
  * @param s The string to print.
  */
-void fb_print(const char *s);
+void fb_print(const char* s);
 
 /**
  * @brief Sets the text color.
@@ -38,6 +38,17 @@ void fb_set_color(uint32_t c);
  * @param new_scale The multiplier (e.g., 2 for 2x size).
  */
 void fb_set_scale(uint32_t new_scale);
+
+/**
+ * @brief Sets the cursor position.
+ * @param x The x position (in characters).
+ * @param y The y position (in characters).
+ */
+void fb_set_cursor(uint32_t x, uint32_t y);
+
+int fb_get_cursor_x(void);
+int fb_get_cursor_y(void);
+// ...
 
 #endif // __FRAMEBUFFER_H__
 

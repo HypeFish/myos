@@ -41,7 +41,19 @@ struct idt_descriptor {
 #endif
 
 #undef PACKED
-// --- END MODIFICATION ---
+// --- END MODIFICATION --
+
+// --- NEW: Move struct registers here from idt.c ---
+// This struct defines the stack frame pushed by our ISR/IRQ/Syscall stubs
+struct registers {
+    // Pushed by 'common_stub'
+    uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
+    uint64_t rbp, rdi, rsi, rdx, rcx, rbx, rax;
+    // Pushed by the individual stubs
+    uint64_t int_no, err_code;
+    // Pushed by the CPU automatically
+    uint64_t rip, cs, rflags, rsp, ss;
+};
 
 
 // --- Public Function Prototypes ---

@@ -34,6 +34,14 @@ static page_table_t pd_kernel;
 __attribute__((aligned(PAGE_SIZE)))
 static page_table_t pt_kernel[512];
 
+/**
+ * @brief Returns the virtual address of the kernel's PML4 page map.
+ */
+page_table_t* vmm_get_kernel_pml4(void) {
+    // 'pml4' is the static variable at the top of this file
+    return &pml4;
+}
+
 
 void vmm_init(void) {
     // --- 1. Clear all tables ---
@@ -47,25 +55,25 @@ void vmm_init(void) {
 
     // --- Get physical addresses ---
     struct limine_kernel_address_response* kaddr = vmm_get_kernel_address();
-    
+
     uint64_t pml4_phys = ((uint64_t)&pml4 - kaddr->virtual_base) + kaddr->physical_base;
     uint64_t pdpt_phys = ((uint64_t)&pdpt - kaddr->virtual_base) + kaddr->physical_base;
     uint64_t pdpt_high_phys = ((uint64_t)&pdpt_high - kaddr->virtual_base) + kaddr->physical_base;
     uint64_t pdpt_hhdm_phys = ((uint64_t)&pdpt_hhdm - kaddr->virtual_base) + kaddr->physical_base;
-    uint64_t pd_phys   = ((uint64_t)&pd   - kaddr->virtual_base) + kaddr->physical_base;
+    uint64_t pd_phys = ((uint64_t)&pd - kaddr->virtual_base) + kaddr->physical_base;
     uint64_t pd_kernel_phys = ((uint64_t)&pd_kernel - kaddr->virtual_base) + kaddr->physical_base;
     uint64_t pt_kernel_phys = ((uint64_t)&pt_kernel - kaddr->virtual_base) + kaddr->physical_base;
 
-    
+
     // --- 2. IDENTITY MAP (for 0x0...) ---
     // This map is shared with the HHDM.
     pml4.entries[0] = pdpt_phys | PTE_PRESENT | PTE_WRITE | PTE_USER;
-    
+
     uint64_t current_phys_addr = 0;
     for (int i = 0; i < 32; i++) {
         // Link the PDPT -> PD
         pdpt.entries[i] = (pd_phys + (i * PAGE_SIZE)) | PTE_PRESENT | PTE_WRITE | PTE_USER;
-        
+
         // Fill the PD with 2MiB huge pages
         for (int j = 0; j < 512; j++) {
             pd[i].entries[j] = current_phys_addr | PTE_PRESENT | PTE_WRITE | PTE_HUGE_PAGE | PTE_USER;
@@ -75,10 +83,10 @@ void vmm_init(void) {
 
     // --- 3. KERNEL MAP (for 0xffffffff8...) ---
     // This map is SEPARATE and uses 4KiB pages.
-    
+
     uint64_t kernel_pml4_index = (kaddr->virtual_base >> 39) & 0x1FF; // 511
     uint64_t kernel_pdpt_index = (kaddr->virtual_base >> 30) & 0x1FF; // 510
-    
+
     // Link PML4[511] -> pdpt_high
     pml4.entries[kernel_pml4_index] = pdpt_high_phys | PTE_PRESENT | PTE_WRITE | PTE_USER;
 
@@ -91,7 +99,7 @@ void vmm_init(void) {
     for (int i = 0; i < 512; i++) { // For each of the 512 PTs
         // Link the PD_KERNEL -> PT
         pd_kernel.entries[i] = (pt_kernel_phys + (i * PAGE_SIZE)) | PTE_PRESENT | PTE_WRITE | PTE_USER;
-        
+
         // Fill the PT with 4KiB pages
         for (int j = 0; j < 512; j++) {
             pt_kernel[i].entries[j] = current_kern_phys | PTE_PRESENT | PTE_WRITE | PTE_USER;
@@ -101,7 +109,7 @@ void vmm_init(void) {
 
     // --- 4. HIGHER-HALF IDENTITY MAP (HHDM) (for 0xffff8...) ---
     uint64_t hhdm_pml4_index = (VIRTUAL_MEMORY_OFFSET >> 39) & 0x1FF; // 256
-    
+
     // Link PML4[256] -> pdpt_hhdm
     pml4.entries[hhdm_pml4_index] = pdpt_hhdm_phys | PTE_PRESENT | PTE_WRITE | PTE_USER;
 
@@ -109,7 +117,7 @@ void vmm_init(void) {
     for (int i = 0; i < 32; i++) {
         pdpt_hhdm.entries[i] = (pd_phys + (i * PAGE_SIZE)) | PTE_PRESENT | PTE_WRITE | PTE_USER;
     }
-    
+
     // --- 5. Load the new Page Map ---
     __asm__ volatile ("mov %0, %%cr3" :: "r"(pml4_phys));
 }

@@ -9,4 +9,9 @@
  */
 uint64_t get_ticks(void);
 
+/**
+ * @brief Timer tick handler called on each timer interrupt.
+ */
+void timer_tick(void);
+
 #endif // __TIMER_H__

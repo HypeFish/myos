@@ -1,6 +1,7 @@
-# Tell the assembler to use Intel syntax (destination, source)
-# and not to require '%' before register names.
-.intel_syntax noprefix
+#
+# This file is now in AT&T syntax (source, destination)
+# We have removed the ".intel_syntax noprefix" directive
+#
 
 .section .text
 
@@ -9,13 +10,16 @@
 .global load_idt
 .global isr_stub_0   # Divide by zero
 .global isr_stub_8   # Double Fault
-# ... (you would add all 32 here)
+# ... (all 32)
 .global isr_stub_default # For all other interrupts
 
 # Declare the C function we will call
 .extern exception_handler
+.extern irq_handler # C handler for hardware IRQs
+.extern syscall_handler
+.extern schedule_and_switch # <-- NEW: For the scheduler
 
-# --- NEW: IRQ (Hardware Interrupt) Section ---
+# --- IRQ (Hardware Interrupt) Section ---
 .global irq_stub_32 # Timer
 .global irq_stub_33 # Keyboard
 .global irq_stub_34
@@ -32,15 +36,16 @@
 .global irq_stub_45
 .global irq_stub_46
 .global irq_stub_47
+.global isr_stub_128
 
-.extern irq_handler # New C handler for hardware IRQs
+
 # --- END NEW ---
 
 # void load_idt(struct idt_descriptor *desc);
 # The first argument is passed in the RDI register.
 load_idt:
-    # Load the IDT descriptor from the address in RDI
-    lidt [rdi]
+    # Load the IDT descriptor from the address in %rdi
+    lidt (%rdi)
     ret
 
 # --- Exception Stubs (ISR) ---
@@ -49,8 +54,8 @@ load_idt:
     .global isr_stub_\vector
     isr_stub_\vector:
         cli             # Disable interrupts
-        push 0          # Push a dummy error code
-        push \vector    # Push the interrupt number (immediate value)
+        push $0         # Push a dummy error code
+        push $\vector   # Push the interrupt number (immediate value)
         jmp common_isr_stub
 .endm
 
@@ -60,7 +65,7 @@ load_idt:
     isr_stub_\vector:
         cli             # Disable interrupts
         # Error code is already on the stack
-        push \vector    # Push the interrupt number (immediate value)
+        push $\vector   # Push the interrupt number (immediate value)
         jmp common_isr_stub
 .endm
 
@@ -93,132 +98,260 @@ ISR_STUB_ERR    29  # 29: VMM Communication Exception
 ISR_STUB_ERR    30  # 30: Security Exception
 ISR_STUB_NO_ERR 31  # 31: (Reserved)
 
+# --- This is the new stub for vector 0x80 (128) ---
+isr_stub_128:
+    cli         # Disable interrupts
+    push $0     # Push a dummy error code (int 0x80 doesn't)
+    push $128   # Push the interrupt number
+    jmp common_syscall_stub
+
 # A default handler for vectors 32-255 (e.g., hardware interrupts)
-# You can make this more specific later.
 isr_stub_default:
     cli
-    push 0  # No error code
-    push 255 # A special vector number for "unknown"
+    push $0     # No error code
+    push $255   # A special vector number for "unknown"
     jmp common_isr_stub
 
 common_isr_stub:
     # Save all general-purpose registers
-    push rax
-    push rbx
-    push rcx
-    push rdx
-    push rsi
-    push rdi
-    push rbp
-    push r8
-    push r9
-    push r10
-    push r11
-    push r12
-    push r13
-    push r14
-    push r15
+    push %rax
+    push %rbx
+    push %rcx
+    push %rdx
+    push %rsi
+    push %rdi
+    push %rbp
+    push %r8
+    push %r9
+    push %r10
+    push %r11
+    push %r12
+    push %r13
+    push %r14
+    push %r15
 
-    # Call the C handler. The stack pointer (RSP) now points to
-    # the saved registers, which is the 'struct registers*' argument.
-    # We pass the stack pointer itself as the argument.
-    mov rdi, rsp
+    # Call the C handler. The stack pointer (%rsp) now points to
+    # the saved registers.
+    # We pass the stack pointer itself as the first argument (in %rdi).
+    mov %rsp, %rdi
     call exception_handler
 
     # Restore all registers (in reverse order)
-    pop r15
-    pop r14
-    pop r13
-    pop r12
-    pop r11
-    pop r10
-    pop r9
-    pop r8
-    pop rbp
-    pop rdi
-    pop rsi
-    pop rdx
-    pop rcx
-    pop rbx
-    pop rax
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    pop %r11
+    pop %r10
+    pop %r9
+    pop %r8
+    pop %rbp
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    pop %rcx
+    pop %rbx
+    pop %rax
 
     # Pop the interrupt number and error code
-    add rsp, 16
+    add $16, %rsp
 
     # Return from interrupt
     iretq
 
-# --- NEW: Hardware Interrupt Stubs (IRQ) ---
-# We use a separate macro and common stub for clarity
-.macro IRQ_STUB vector
+# --- Hardware Interrupt Stubs (IRQ) ---
+.macro IRQ_STUB vector, jmp_target
     .global irq_stub_\vector
     irq_stub_\vector:
         cli             # Disable interrupts
-        push 0          # Push a dummy error code (IRQs don't have one)
-        push \vector    # Push the interrupt number (32-47)
-        jmp common_irq_stub
+        push $0         # Push a dummy error code (IRQs don't have one)
+        push $\vector   # Push the interrupt number (32-47)
+        jmp \jmp_target
 .endm
 
+# --- MODIFIED ---
 # Create stubs for all 16 IRQs (vectors 32-47)
-IRQ_STUB 32
-IRQ_STUB 33
-IRQ_STUB 34
-IRQ_STUB 35
-IRQ_STUB 36
-IRQ_STUB 37
-IRQ_STUB 38
-IRQ_STUB 39
-IRQ_STUB 40
-IRQ_STUB 41
-IRQ_STUB 42
-IRQ_STUB 43
-IRQ_STUB 44
-IRQ_STUB 45
-IRQ_STUB 46
-IRQ_STUB 47
+# IRQ 0 (Timer) jumps to the new scheduler stub
+IRQ_STUB 32, common_irq_sched_stub
+
+# All other IRQs jump to the normal stub
+IRQ_STUB 33, common_irq_stub
+IRQ_STUB 34, common_irq_stub
+IRQ_STUB 35, common_irq_stub
+IRQ_STUB 36, common_irq_stub
+IRQ_STUB 37, common_irq_stub
+IRQ_STUB 38, common_irq_stub
+IRQ_STUB 39, common_irq_stub
+IRQ_STUB 40, common_irq_stub
+IRQ_STUB 41, common_irq_stub
+IRQ_STUB 42, common_irq_stub
+IRQ_STUB 43, common_irq_stub
+IRQ_STUB 44, common_irq_stub
+IRQ_STUB 45, common_irq_stub
+IRQ_STUB 46, common_irq_stub
+IRQ_STUB 47, common_irq_stub
+# --- END MODIFIED ---
+
 
 common_irq_stub:
     # Save all general-purpose registers
-    push rax
-    push rbx
-    push rcx
-    push rdx
-    push rsi
-    push rdi
-    push rbp
-    push r8
-    push r9
-    push r10
-    push r11
-    push r12
-    push r13
-    push r14
-    push r15
+    push %rax
+    push %rbx
+    push %rcx
+    push %rdx
+    push %rsi
+    push %rdi
+    push %rbp
+    push %r8
+    push %r9
+    push %r10
+    push %r11
+    push %r12
+    push %r13
+    push %r14
+    push %r15
 
     # Call the C handler.
-    mov rdi, rsp
+    mov %rsp, %rdi
     call irq_handler # Call the new C handler for IRQs
 
     # Restore all registers
-    pop r15
-    pop r14
-    pop r13
-    pop r12
-    pop r11
-    pop r10
-    pop r9
-    pop r8
-    pop rbp
-    pop rdi
-    pop rsi
-    pop rdx
-    pop rcx
-    pop rbx
-    pop rax
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    pop %r11
+    pop %r10
+    pop %r9
+    pop %r8
+    pop %rbp
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    pop %rcx
+    pop %rbx
+    pop %rax
 
     # Pop the interrupt number and error code
-    add rsp, 16
+    add $16, %rsp
 
     # Return from interrupt
     iretq
-# --- END NEW ---
+
+
+# --- Syscall Stub ---
+.global common_syscall_stub
+common_syscall_stub:
+    # Save all general-purpose registers
+    push %rax
+    push %rbx
+    push %rcx
+    push %rdx
+    push %rsi
+    push %rdi
+    push %rbp
+    push %r8
+    push %r9
+    push %r10
+    push %r11
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+
+    # Pass a pointer to the saved registers (%rsp)
+    # as the first argument (in %rdi) to the C function
+    mov %rsp, %rdi
+
+    # Call the C-level handler
+    call syscall_handler
+
+    # Restore all registers
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    pop %r11
+    pop %r10
+    pop %r9
+    pop %r8
+    pop %rbp
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    pop %rcx
+    pop %rbx
+    
+    # The C handler put its return value in 'rax' on the stack.
+    # We pop it into %rax here to preserve it.
+    pop %rax
+
+    # Pop int_no and err_code
+    add $16, %rsp
+
+    # Return from interrupt, re-enabling interrupts
+    sti
+    iretq
+
+
+# --- NEW: Common IRQ Stub for Scheduler ---
+# This is called *only* by the timer (IRQ 0 / INT 32)
+.global common_irq_sched_stub
+common_irq_sched_stub:
+    # 1. Save all registers (this is 'struct registers')
+    push %rax
+    push %rbx
+    push %rcx
+    push %rdx
+    push %rsi
+    push %rdi
+    push %rbp
+    push %r8
+    push %r9
+    push %r10
+    push %r11
+    push %r12
+    push %r13
+    push %r14
+    push %r15
+    
+    # 2. Pass pointer to the 'struct registers' (%rsp) to C
+    mov %rsp, %rdi
+    
+    # 3. Call the C scheduler.
+    # It will save the RSP (rdi) into current_task->regs
+    # and return the *new* task's RSP in RAX
+    call schedule_and_switch
+    
+    # 4. %rax now contains the *new* stack pointer.
+    # Switch stacks.
+    mov %rax, %rsp
+    
+    # 5. Restore all registers for the *new* task
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    pop %r11
+    pop %r10
+    pop %r9
+    pop %r8
+    pop %rbp
+    pop %rdi
+    pop %rsi
+    pop %rdx
+    pop %rcx
+    pop %rbx
+    pop %rax
+    
+    # 6. Pop int_no and err_code (which were part of the saved frame)
+    add $16, %rsp
+    
+    # 7. Send EOI (End of Interrupt) to the PIC
+    # This must be done *after* switching tasks.
+    mov $0x20, %al
+    outb %al, $0x20 # EOI to master PIC
+
+    # 8. Return from interrupt, restoring RIP, CS, RFLAGS, RSP, SS
+    # of the *new* task.
+    iretq

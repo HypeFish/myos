@@ -6,20 +6,19 @@
 #include "framebuffer.h"  // For fb_putchar
 #include "keyboard.h"     // For kbd_us_map
 #include "string.h"       // For strcmp
-#include "timer.h"
-
-// --- NEW: Shell buffer ---
-static char line_buffer[256];
-static int buffer_index = 0;
-#define MAX_BUFFER 255
+#include "timer.h" 
+#include "kshell.h"      
 
 static volatile uint64_t ticks = 0;
 
-// --- NEW: Extern function (will live in main.c) ---
-extern void shell_execute(const char *cmd);
-
 uint64_t get_ticks(void) {
     return ticks;
+}
+
+// --- NEW PUBLIC FUNCTION ---
+// This will be called by the scheduler every time the timer fires.
+void timer_tick(void) {
+    ticks++;
 }
 
 // --- Define the IDT array (256 entries) ---
@@ -56,6 +55,7 @@ extern void* isr_stub_28;
 extern void* isr_stub_29;
 extern void* isr_stub_30;
 extern void* isr_stub_31;
+extern void* isr_stub_128; // For syscall (if needed)
 extern void* isr_stub_default;
 
 // Array of stub pointers to make initialization easier
@@ -111,15 +111,6 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
 }
 
 // --- The C-level exception handler ---
-struct registers {
-    // Registers pushed by 'common_isr_stub' / 'common_irq_stub'
-    uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
-    uint64_t rbp, rdi, rsi, rdx, rcx, rbx, rax;
-    // Pushed by the individual stubs
-    uint64_t int_no, err_code;
-    // Pushed by the CPU automatically on interrupt
-    uint64_t rip, cs, rflags, rsp, ss;
-};
 
 void __attribute__((used))exception_handler(struct registers* regs) {
     // (This function is unchanged)
@@ -127,7 +118,8 @@ void __attribute__((used))exception_handler(struct registers* regs) {
     if (regs->int_no < 10) {
         char c[2] = { (char)(regs->int_no + '0'), '\0' };
         serial_write_string(c);
-    } else if (regs->int_no < 32) {
+    }
+    else if (regs->int_no < 32) {
         char c[3];
         c[0] = (char)((regs->int_no / 10) + '0');
         c[1] = (char)((regs->int_no % 10) + '0');
@@ -148,77 +140,57 @@ void __attribute__((used))irq_handler(struct registers* regs) {
     uint8_t irq = regs->int_no - 32;
 
     switch (irq) {
-        case 0: // Timer (IRQ 0)
-        {
-            ticks++;
+    case 1: // Keyboard (IRQ 1)
+    {
+        uint8_t scancode = inb(0x60);
+
+        // Ignore key releases
+        if (scancode >= 0x80) {
             break;
         }
-        
-        case 1: // Keyboard (IRQ 1)
-        {
-            uint8_t scancode = inb(0x60);
-            
-            // Ignore key releases
-            if (scancode >= 0x80) {
-                break;
-            }
 
-            // Translate scancode
-            char c = kbd_us_map[scancode];
+        // Translate scancode
+        char c = kbd_us_map[scancode];
 
-            if (c == '\n') {
-                // --- ENTER KEY ---
-                fb_putchar('\n');
-                line_buffer[buffer_index] = '\0'; // Null-terminate
-                shell_execute(line_buffer);      // Process command
-                buffer_index = 0;                  // Reset buffer
-                fb_print("> ");                    // Print new prompt
-            } else if (c == '\b') {
-                // --- BACKSPACE KEY ---
-                if (buffer_index > 0) {
-                    buffer_index--;
-                    fb_putchar('\b'); // fb_putchar handles the erase
-                }
-            } else if (c != 0) {
-                // --- PRINTABLE CHAR ---
-                if (buffer_index < MAX_BUFFER) {
-                    line_buffer[buffer_index] = c;
-                    buffer_index++;
-                    fb_putchar(c); // Echo character to screen
-                }
-            }
-            break;
+        // Send the character to the kernel shell to process
+        if (c != 0) {
+            kshell_process_char(c);
         }
-        // --- END OF CHANGE ---
+        break;
+    }
 
-        default:
-            // (This is unchanged)
-            serial_write_string("Unhandled IRQ: ");
-            if (irq < 10) {
-                char c[2] = { (char)(irq + '0'), '\0' };
-                serial_write_string(c);
-            } else {
-                char c[3] = { (char)((irq / 10) + '0'), (char)((irq % 10) + '0'), '\0' };
-                serial_write_string(c);
-            }
-            serial_write_string("\n");
-            break;
+    default:
+        // (This is unchanged)
+        serial_write_string("Unhandled IRQ: ");
+        if (irq < 10) {
+            char c[2] = { (char)(irq + '0'), '\0' };
+            serial_write_string(c);
+        }
+        else {
+            char c[3] = { (char)((irq / 10) + '0'), (char)((irq % 10) + '0'), '\0' };
+            serial_write_string(c);
+        }
+        serial_write_string("\n");
+        break;
     }
 
     // Send the End-of-Interrupt (EOI) signal to the PIC
     pic_send_eoi(irq);
 }
 
-
 // --- IDT Initialization Function ---
 void idt_init(void) {
-    // (This function is unchanged)
     serial_write_string("Initializing IDT...\n");
 
     idt_desc.limit = sizeof(idt) - 1;
     idt_desc.base = (uint64_t)&idt[0];
 
-    uint8_t flags = 0x8E;
+    uint8_t flags = 0x8E; // P=1, DPL=0 (Kernel), Type=Interrupt Gate
+
+    // --- NEW: Syscall flags ---
+    // P=1, DPL=3 (User), Type=Interrupt Gate
+    // The DPL=3 (0x60) is CRITICAL. It allows 'int 0x80' from user-mode.
+    uint8_t syscall_flags = 0xEE; // 0x80 (P) | 0x60 (DPL=3) | 0x0E (Type)
 
     // --- 1. Set up the exception handlers (vectors 0-31) ---
     for (uint8_t vector = 0; vector < 32; vector++) {
@@ -236,6 +208,10 @@ void idt_init(void) {
     for (int vector = 48; vector < 256; vector++) {
         idt_set_descriptor(vector, &isr_stub_default, flags);
     }
+
+    // --- 4. NEW: Override vector 0x80 (128) for syscalls ---
+    idt_set_descriptor(0x80, &isr_stub_128, syscall_flags);
+    serial_write_string("Syscall vector 0x80 set with user flags (0xEE).\n");
 
     load_idt(&idt_desc);
     serial_write_string("IDT loaded!\n");

@@ -16,4 +16,11 @@ struct limine_framebuffer* vmm_get_framebuffer(void);
  */
 void vmm_init(void);
 
+/**
+ * @brief Retrieves the kernel's PML4 page table.
+ *
+ * @return A pointer to the kernel's PML4 page table.
+ */
+page_table_t* vmm_get_kernel_pml4(void); // <-- ADD THIS LINE
+
 #endif // __VMM_H__
