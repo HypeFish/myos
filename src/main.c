@@ -144,9 +144,8 @@ struct limine_memmap_response* vmm_get_memmap(void) {
 struct limine_kernel_address_response* vmm_get_kernel_address(void) {
     return kernel_address_request.response;
 }
-
 struct limine_framebuffer* vmm_get_framebuffer(void) {
-    return global_framebuffer;
+    return framebuffer_request.response->framebuffers[0];
 }
 
 // The following will be our kernel's entry point.
@@ -160,33 +159,46 @@ void _start(void) {
     idt_init();
     pic_remap_and_init();
     serial_write_string("PIC remapped!\n");
-    pit_init(100); // Initialize PIT to 100Hz
 
-    // --- 3. Initialize Framebuffer ---
+    // --- 3. VALIDATE ALL LIMINE REQUESTS ---
+    // This is the critical fix. We must check these *before* vmm_init.
     if (framebuffer_request.response == NULL
         || framebuffer_request.response->framebuffer_count < 1) {
         serial_write_string("ERROR: No framebuffer available.\n");
         hcf();
     }
     
+    if (kernel_address_request.response == NULL) {
+        serial_write_string("ERROR: Failed to get kernel address.\n");
+        hcf();
+    }
+    
+    if (memmap_request.response == NULL) {
+        serial_write_string("ERROR: Failed to get memory map.\n");
+        hcf();
+    }
+
+    // --- 4. Initialize Memory & Framebuffer ---
     global_framebuffer = framebuffer_request.response->framebuffers[0];
 
+    // NOW it is safe to call vmm_init
     vmm_init(); // Virtual Memory Manager
     serial_write_string("VMM Phase 1b complete. New page map is active.\n");
+    
+    // NOW it is safe to call pmm_init
     pmm_init(memmap_request.response); // Physical Memory Manager
+    
     heap_init(); // Kernel Heap
     fb_init(global_framebuffer);
 
-    // --- 4. Enable Interrupts ---
-    sti();
+    // --- 5. Enable Interrupts & Enter Idle Loop ---
+    pit_init(100); // Initialize PIT to 100Hz
+    
     serial_write_string("Interrupts enabled!\n");
     fb_print("Welcome to myOS!\n");
-
-    // --- NEW: Print the first shell prompt ---
     fb_print("> ");
 
     for (;;) {
         __asm__ volatile ("sti; hlt");
     }
-} 
-
+}

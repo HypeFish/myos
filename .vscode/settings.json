@@ -10,6 +10,7 @@
         "serialport.h": "c",
         "pit.h": "c",
         "stdint.h": "c",
-        "vmm.h": "c"
+        "vmm.h": "c",
+        "pmm.h": "c"
     }
 }

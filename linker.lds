@@ -31,14 +31,14 @@ SECTIONS
     } :limine_requests
 
     /* Move to the next memory page for .text */
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    . = ALIGN(0x1000);
 
     .text : {
         *(.text .text.*)
     } :text
 
     /* Move to the next memory page for .rodata */
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    . = ALIGN(0x1000);
 
     .rodata : {
         *(.rodata .rodata.*)
@@ -51,7 +51,7 @@ SECTIONS
     } :rodata
 
     /* Move to the next memory page for .data */
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    . = ALIGN(0x1000);
 
     .data : {
         *(.data .data.*)
