@@ -14,7 +14,8 @@
 #include "pit.h"
 #include "timer.h"
 #include "task.h"
-#include "kshell.h" // <-- ADDED
+#include "kshell.h"
+#include "tar.h"
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -49,6 +50,15 @@ kernel_address_request = {
     .revision = 0
 };
 
+// --- NEW: Add a Limine Module Request ---
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_module_request
+module_request = {
+    .id = LIMINE_MODULE_REQUEST,
+    .revision = 0
+};
+// --- END NEW ---
+
 
 // Finally, define the start and end markers for the Limine requests.
 // These can also be moved anywhere, to any .c file, as seen fit.
@@ -67,6 +77,7 @@ static void hcf(void) {
 }
 
 // --- shell_execute, fb_print_uint, and fb_print_hex were REMOVED ---
+// (They now live in kshell.c)
 
 struct limine_framebuffer* global_framebuffer = NULL;
 
@@ -94,7 +105,6 @@ void _start(void) {
     serial_write_string("PIC remapped!\n");
 
     // --- 3. VALIDATE ALL LIMINE REQUESTS ---
-    // This is the critical fix. We must check these *before* vmm_init.
     if (framebuffer_request.response == NULL
         || framebuffer_request.response->framebuffer_count < 1) {
         serial_write_string("ERROR: No framebuffer available.\n");
@@ -110,6 +120,13 @@ void _start(void) {
         serial_write_string("ERROR: Failed to get memory map.\n");
         hcf();
     }
+    
+    // --- NEW: Validate the module request ---
+    if (module_request.response == NULL || module_request.response->module_count < 1) {
+        serial_write_string("ERROR: Failed to get initrd module.\n");
+        hcf();
+    }
+    // --- END NEW ---
 
     // --- 4. Initialize Memory & Framebuffer ---
     global_framebuffer = framebuffer_request.response->framebuffers[0];
@@ -131,6 +148,16 @@ void _start(void) {
 
     serial_write_string("Interrupts enabled!\n");
     fb_print("Welcome to myOS!\n");
+    
+    // --- NEW: Print initrd location ---
+    struct limine_file* initrd = module_request.response->modules[0];
+    tar_init(initrd->address); // Initialize the tar filesystem
+    fb_print("Initrd loaded at: ");
+    kshell_print_hex((uint64_t)initrd->address); // <-- Use public helper
+    fb_print("\nSize: ");
+    kshell_print_uint(initrd->size); // <-- Use public helper
+    fb_print(" bytes\n");
+    // --- END NEW ---
 
     // --- MODIFIED: Start the shell ---
     kshell_init(); // This will print the first "> "

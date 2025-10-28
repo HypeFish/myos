@@ -71,7 +71,7 @@ void vmm_init(void) {
 
     uint64_t current_phys_addr = 0;
     for (int i = 0; i < 32; i++) {
-        // Link the PDPT -> PD
+        // Link the PDPT -> PDPT
         pdpt.entries[i] = (pd_phys + (i * PAGE_SIZE)) | PTE_PRESENT | PTE_WRITE | PTE_USER;
 
         // Fill the PD with 2MiB huge pages

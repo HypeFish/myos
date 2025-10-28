@@ -13,6 +13,9 @@
         "vmm.h": "c",
         "pmm.h": "c",
         "heap.h": "c",
-        "task.h": "c"
+        "task.h": "c",
+        "kshell.h": "c",
+        "timer.h": "c",
+        "tar.h": "c"
     }
 }

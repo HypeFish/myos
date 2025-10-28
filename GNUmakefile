@@ -53,6 +53,9 @@ ASOBJ := $(patsubst src/%.S, obj/%.o, $(ASFILES))
 OBJ := $(COBJ) $(ASOBJ)
 HEADER_DEPS := $(patsubst src/%.c, obj/%.d, $(CFILES))
 
+KERNEL_BIN := bin/$(OUTPUT)
+INITRD_TAR := build/initrd.tar
+
 # --- Build Rules ---
 
 # Default target
@@ -74,6 +77,10 @@ obj/%.o: src/%.S GNUmakefile
 	@mkdir -p "$(dir $@)"
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
+$(INITRD_TAR): build/initrd/hello.txt
+	@echo "  TAR     $@"
+	@tar -cf $@ -C build/initrd .
+
 # Rule to clean the project directory
 .PHONY: clean
 clean:
@@ -87,11 +94,13 @@ limine:
 
 # Rule to build the ISO image
 .PHONY: image.iso
-image.iso: all limine.cfg limine
+image.iso: all limine.cfg limine $(INITRD_TAR)
 	@echo "Building ISO image..."
 	@rm -rf iso_root
 	@mkdir -p iso_root/boot/
-	@cp -v bin/$(OUTPUT) iso_root/boot/myos
+	# --- MODIFIED: Added $(INITRD_TAR) to this cp command ---
+	@cp -v $(KERNEL_BIN) iso_root/boot/myos
+	@cp -v $(INITRD_TAR) iso_root/boot/initrd.tar
 	@cp -v limine.cfg limine/limine.sys limine/limine-cd.bin iso_root/boot/
 	@mkdir -p iso_root/EFI/BOOT
 	@cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/

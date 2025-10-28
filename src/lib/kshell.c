@@ -4,13 +4,14 @@
 #include "pmm.h"         // For alloc command
 #include "heap.h"        // For ktest command
 #include "timer.h"       // For uptime command
+#include "tar.h"        // For tar filesystem
 
-// --- Shell Buffer (moved from idt.c) ---
+// --- Shell Buffer  ---
 static char line_buffer[256];
 static int buffer_index = 0;
 #define MAX_BUFFER 255
 
-// --- Print Helpers (moved from main.c) ---
+// --- Print Helpers ---
 static void fb_print_uint(uint64_t n) {
     if (n == 0) {
         fb_putchar('0');
@@ -36,7 +37,7 @@ static void fb_print_hex(uint64_t n) {
     }
 }
 
-// --- Shell Command Executor (moved from main.c) ---
+// --- Command Execution ---
 static void shell_execute(const char* command) {
     if (strcmp(command, "help") == 0) {
         fb_print("Welcome to myOS!\n");
@@ -119,6 +120,22 @@ static void shell_execute(const char* command) {
         fb_print_hex(ret);
         fb_print("\n");
     }
+    else if (strcmp(command, "ls") == 0) {
+        tar_list_files();
+    }
+    else if (strcmp(command, "cat") == 0) {
+        fb_print("Reading from initrd/hello.txt...\n");
+        
+        char* content = (char*)tar_lookup("hello.txt");
+        
+        if (content != NULL) {
+            fb_print("Content of hello.txt:\n");
+            fb_print(content);
+            fb_print("\n");
+        } else {
+            fb_print("ERROR: Could not find hello.txt!\n");
+        }
+    }
     else if (strcmp(command, "") == 0) {
         // Do nothing
     }
@@ -161,4 +178,29 @@ void kshell_process_char(char c) {
             fb_putchar(c); // Echo character to screen
         }
     }
+}
+
+void kshell_print_hex(uint64_t n) { 
+    char hex_chars[] = "0123456789ABCDEF";
+    fb_print("0x");
+    for (int i = 60; i >= 0; i -= 4) {
+        char c = hex_chars[(n >> i) & 0xF];
+        fb_putchar(c);
+    }
+}
+
+void kshell_print_uint(uint64_t n) { 
+    if (n == 0) {
+        fb_putchar('0');
+        return;
+    }
+    char buffer[20];
+    int i = 19;
+    buffer[i] = '\0';
+    while (n > 0) {
+        i--;
+        buffer[i] = (n % 10) + '0';
+        n /= 10;
+    }
+    fb_print(&buffer[i]);
 }
