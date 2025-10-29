@@ -31,6 +31,7 @@ override CPPFLAGS += \
     -I src/arch \
     -I src/drivers \
     -I src/lib \
+	-I src/fs
     -DLIMINE_API_REVISION=3 \
     -MMD \
     -MP

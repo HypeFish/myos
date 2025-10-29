@@ -139,7 +139,7 @@ void _start(void) {
     fb_print("Welcome to myOS! Type 'help' for a list of commands.\n");
     fb_print("Initrd loaded at: ");
     kshell_print_hex((uint64_t)initrd->address);
-\
+    fb_print("\n");
     kshell_init(); // Prints the first "> " prompt
 
     // --- 7. Enable Interrupts & Idle ---
