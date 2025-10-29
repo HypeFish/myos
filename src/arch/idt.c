@@ -15,8 +15,6 @@ uint64_t get_ticks(void) {
     return ticks;
 }
 
-// --- NEW PUBLIC FUNCTION ---
-// This will be called by the scheduler every time the timer fires.
 void timer_tick(void) {
     ticks++;
 }
@@ -95,7 +93,6 @@ static void* irq_stubs[] = {
     &irq_stub_44, &irq_stub_45, &irq_stub_46, &irq_stub_47
 };
 
-
 // --- Helper function to set an IDT entry ---
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
     struct InterruptDescriptor64* descriptor = &idt[vector];
@@ -110,8 +107,8 @@ void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
     descriptor->zero = 0;        // Reserved
 }
 
-// --- The C-level exception handler ---
 
+// Exception Message Strings
 void __attribute__((used))exception_handler(struct registers* regs) {
     // (This function is unchanged)
     serial_write_string("Exception triggered: ");
@@ -135,7 +132,7 @@ void __attribute__((used))exception_handler(struct registers* regs) {
 }
 
 
-// --- C-level Hardware Interrupt Handler (IRQ) ---
+// IRQ Handler
 void __attribute__((used))irq_handler(struct registers* regs) {
     uint8_t irq = regs->int_no - 32;
 
@@ -178,7 +175,7 @@ void __attribute__((used))irq_handler(struct registers* regs) {
     pic_send_eoi(irq);
 }
 
-// --- IDT Initialization Function ---
+// Initialize the IDT
 void idt_init(void) {
     serial_write_string("Initializing IDT...\n");
 
@@ -187,29 +184,28 @@ void idt_init(void) {
 
     uint8_t flags = 0x8E; // P=1, DPL=0 (Kernel), Type=Interrupt Gate
 
-    // --- NEW: Syscall flags ---
     // P=1, DPL=3 (User), Type=Interrupt Gate
     // The DPL=3 (0x60) is CRITICAL. It allows 'int 0x80' from user-mode.
     uint8_t syscall_flags = 0xEE; // 0x80 (P) | 0x60 (DPL=3) | 0x0E (Type)
 
-    // --- 1. Set up the exception handlers (vectors 0-31) ---
+    // Set up the IDT entries
     for (uint8_t vector = 0; vector < 32; vector++) {
         if (isr_stubs[vector] != NULL) {
             idt_set_descriptor(vector, isr_stubs[vector], flags);
         }
     }
 
-    // --- 2. Set up the hardware IRQ handlers (vectors 32-47) ---
+    // Set up IRQs (vectors 32-47)
     for (uint8_t vector = 0; vector < 16; vector++) {
         idt_set_descriptor(vector + 32, irq_stubs[vector], flags);
     }
 
-    // --- 3. Set up a default handler for all other vectors (48-255) ---
+    // Set default handler for remaining vectors (48-255)
     for (int vector = 48; vector < 256; vector++) {
         idt_set_descriptor(vector, &isr_stub_default, flags);
     }
 
-    // --- 4. NEW: Override vector 0x80 (128) for syscalls ---
+    // Set up syscall vector (0x80) with user-level flags
     idt_set_descriptor(0x80, &isr_stub_128, syscall_flags);
     serial_write_string("Syscall vector 0x80 set with user flags (0xEE).\n");
 

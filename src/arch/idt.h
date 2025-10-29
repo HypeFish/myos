@@ -3,18 +3,14 @@
 
 #include <stdint.h>
 
-// --- MODIFICATION ---
-// Moved the PACKED definition block to the top.
-// We will undefine it at the very end of the file.
 #ifdef _MSC_VER
 #pragma pack(push,1)
 #define PACKED
 #else
 #define PACKED __attribute__((packed))
 #endif
-// --- END MODIFICATION ---
 
-// --- The IDT Entry Structure You Provided ---
+// 64-bit Interrupt Descriptor Table (IDT) Entry Structure
 struct InterruptDescriptor64 {
     uint16_t offset_1;        // offset bits 0..15
     uint16_t selector;        // a code segment selector in GDT or LDT
@@ -26,24 +22,19 @@ struct InterruptDescriptor64 {
 } PACKED;
 
 
-// --- The IDT Descriptor (IDTR) Structure ---
-// This is analogous to your gdt_descriptor
+// IDT Descriptor Structure
 struct idt_descriptor {
     uint16_t limit;
     uint64_t base;
-} PACKED; // <<< This will now work
+} PACKED;
 
 
-// --- MODIFICATION ---
-// Moved the pragma pop and undef to the end of the file.
 #ifdef _MSC_VER
 #pragma pack(pop)
 #endif
 
 #undef PACKED
-// --- END MODIFICATION --
 
-// --- NEW: Move struct registers here from idt.c ---
 // This struct defines the stack frame pushed by our ISR/IRQ/Syscall stubs
 struct registers {
     // Pushed by 'common_stub'
@@ -61,8 +52,7 @@ struct registers {
 // The main function to set up the IDT
 void idt_init(void);
 
-// Assembly function (in idt_asm.S) to load the IDT Register (IDTR)
-// This is just like your load_gdt() function
+// Assembly function (in idt_asm.S) to load the IDT Register (IDTR) 
 extern void load_idt(struct idt_descriptor* desc);
 
 // --- Inline Assembly for STI/CLI ---

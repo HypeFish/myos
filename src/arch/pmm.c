@@ -47,15 +47,13 @@ static void serial_print_hex(uint64_t n) {
 }
 
 void pmm_init(struct limine_memmap_response *memmap_response) {
-    // serial_write_string("Initializing PMM...\n");
-
     if (memmap_response == NULL) {
         // serial_write_string("ERROR: No memory map from Limine.\n");
         return;
     }
 
     // --- 1. Loop 1: Find the highest memory address ---
-    // We need this to know how many pages our bitmap needs to cover.
+    // This is needed to determine how big our bitmap needs to be.
     for (uint64_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry *entry = memmap_response->entries[i];
         if (entry->type == LIMINE_MEMMAP_USABLE) {
@@ -70,10 +68,6 @@ void pmm_init(struct limine_memmap_response *memmap_response) {
     // We need 1 bit per page. 8 bits per byte.
     bitmap_size_in_bytes = (total_pages / 8) + 1;
 
-    // serial_write_string("  Highest address: "); serial_print_hex(highest_address); serial_write_string("\n");
-    // serial_write_string("  Total pages: "); serial_print_hex(total_pages); serial_write_string("\n");
-    // serial_write_string("  Bitmap size: "); serial_print_hex(bitmap_size_in_bytes); serial_write_string(" bytes\n");
-
     // --- 2. Loop 2: Find a large enough [Usable] region to store the bitmap ---
     for (uint64_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry *entry = memmap_response->entries[i];
@@ -83,8 +77,6 @@ void pmm_init(struct limine_memmap_response *memmap_response) {
             
             // Mark the entire bitmap as "used" (all 1s) by default
             memset(bitmap, 0xFF, bitmap_size_in_bytes);
-            
-            // serial_write_string("  Bitmap placed at: "); serial_print_hex((uint64_t)bitmap); serial_write_string("\n");
             break;
         }
     }

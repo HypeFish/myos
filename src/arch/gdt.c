@@ -1,8 +1,7 @@
-#include "gdt.h"        // Contains the correct 64-bit flag macros
-#include "serialport.h" // For printing debug messages
+#include "gdt.h"        
+#include "serialport.h" 
 #include <stdint.h>
 
-// --- Define GDT Entries using CORRECT 64-bit flags from gdt.h ---
 
 // Kernel Code Segment (64-bit)
 #define GDT_KERNEL_CODE (GDT_ACCESS_PRESENT | GDT_ACCESS_PRIVL(0) | \
@@ -14,17 +13,12 @@
                          GDT_ACCESS_DESCTYPE(1) | GDT_ACCESS_RW | \
                          GDT_GRAN_4K_GRANULARITY)
 
-// --- GDT Array and Descriptor ---
-
-// Our GDT array (Global Descriptor Table)
+                         // Our GDT array (Global Descriptor Table)
 // It has 3 entries: Null, Kernel Code, Kernel Data
 uint64_t gdt[3];
 
 // The GDT descriptor (GDTR) structure used by the lgdt instruction
 struct gdt_descriptor gdt_desc;
-
-
-// --- GDT Initialization Function ---
 
 // This function sets up the GDT and loads it.
 void gdt_init(void) {

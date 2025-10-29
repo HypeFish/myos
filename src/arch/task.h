@@ -16,26 +16,22 @@ typedef enum {
 } task_state_t;
 
 typedef struct task {
-    // --- Context switching info ---
-    // This MUST be the first element.
-    // It holds the saved register state when the task is not running.
-    // We will save/restore this in assembly.
+    // cpu registers saved during context switch
+    // must be the first element
     struct registers regs;
 
-    // --- Kernel stack ---
-    // We need a separate kernel stack for each task
-    // so they don't overwrite each other during interrupts.
+    // kernel stack info
     uint8_t* kernel_stack;
     uint64_t kernel_stack_ptr; // The top of the kernel stack (RSP)
 
-    // --- Scheduling info ---
+    // process info 
     int64_t pid;                // Process ID
     task_state_t state;         // Current task state
 
-    // --- Paging info ---
+    // paging info
     page_table_t* pml4;         // Pointer to this task's page map
 
-    // --- Linked list for scheduler ---
+    // linked list for scheduler
     struct task* next;
 
 } task_t;

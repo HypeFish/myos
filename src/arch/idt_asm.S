@@ -1,45 +1,36 @@
-#
-# This file is now in AT&T syntax (source, destination)
-# We have removed the ".intel_syntax noprefix" directive
-#
-
 .section .text
 
-# --- Exception (ISR) Section ---
 # Make these functions visible to C code
 .global load_idt
 .global isr_stub_0   # Divide by zero
 .global isr_stub_8   # Double Fault
-# ... (all 32)
+
 .global isr_stub_default # For all other interrupts
 
-# Declare the C function we will call
+# Declare the C function we will callS
 .extern exception_handler
-.extern irq_handler # C handler for hardware IRQs
-.extern syscall_handler
-.extern schedule_and_switch # <-- NEW: For the scheduler
+.extern irq_handler # C handler for IRQs
+.extern syscall_handler # C handler for syscalls
+.extern schedule_and_switch # C function to handle scheduling
 
-# --- IRQ (Hardware Interrupt) Section ---
+# IRQ stubs
 .global irq_stub_32 # Timer
 .global irq_stub_33 # Keyboard
-.global irq_stub_34
-.global irq_stub_35
-.global irq_stub_36
-.global irq_stub_37
-.global irq_stub_38
-.global irq_stub_39
-.global irq_stub_40
-.global irq_stub_41
-.global irq_stub_42
-.global irq_stub_43
-.global irq_stub_44
-.global irq_stub_45
-.global irq_stub_46
-.global irq_stub_47
-.global isr_stub_128
-
-
-# --- END NEW ---
+.global irq_stub_34 # Cascade
+.global irq_stub_35 # COM2
+.global irq_stub_36 # COM1
+.global irq_stub_37 # LPT2
+.global irq_stub_38 # Floppy
+.global irq_stub_39 # LPT1
+.global irq_stub_40 # RTC
+.global irq_stub_41 # IRQ 9
+.global irq_stub_42 # IRQ 10
+.global irq_stub_43 # IRQ 11
+.global irq_stub_44 # IRQ 12
+.global irq_stub_45 # IRQ 13
+.global irq_stub_46 # IRQ 14
+.global irq_stub_47 # IRQ 15
+.global isr_stub_128 # System Call
 
 # void load_idt(struct idt_descriptor *desc);
 # The first argument is passed in the RDI register.
@@ -48,9 +39,9 @@ load_idt:
     lidt (%rdi)
     ret
 
-# --- Exception Stubs (ISR) ---
+# Exception and Interrupt Stubs
 .macro ISR_STUB_NO_ERR vector
-    # This stub is for interrupts that DO NOT push an error code (like \vector)
+    # This stub is for interrupts that DO NOT push an error code (
     .global isr_stub_\vector
     isr_stub_\vector:
         cli             # Disable interrupts
@@ -60,7 +51,7 @@ load_idt:
 .endm
 
 .macro ISR_STUB_ERR vector
-    # This stub is for interrupts that DO push an error code (like \vector)
+    # This stub is for interrupts that DO push an error code 
     .global isr_stub_\vector
     isr_stub_\vector:
         cli             # Disable interrupts
@@ -98,14 +89,14 @@ ISR_STUB_ERR    29  # 29: VMM Communication Exception
 ISR_STUB_ERR    30  # 30: Security Exception
 ISR_STUB_NO_ERR 31  # 31: (Reserved)
 
-# --- This is the new stub for vector 0x80 (128) ---
+# Syscall Stub (vector 128 / 0x80)
 isr_stub_128:
     cli         # Disable interrupts
     push $0     # Push a dummy error code (int 0x80 doesn't)
     push $128   # Push the interrupt number
     jmp common_syscall_stub
 
-# A default handler for vectors 32-255 (e.g., hardware interrupts)
+# Default ISR Stub for other interrupts (vectors 32-255)
 isr_stub_default:
     cli
     push $0     # No error code
@@ -159,7 +150,7 @@ common_isr_stub:
     # Return from interrupt
     iretq
 
-# --- Hardware Interrupt Stubs (IRQ) ---
+# IRQ Stubs (vectors 32-47)
 .macro IRQ_STUB vector, jmp_target
     .global irq_stub_\vector
     irq_stub_\vector:
@@ -169,7 +160,6 @@ common_isr_stub:
         jmp \jmp_target
 .endm
 
-# --- MODIFIED ---
 # Create stubs for all 16 IRQs (vectors 32-47)
 # IRQ 0 (Timer) jumps to the new scheduler stub
 IRQ_STUB 32, common_irq_sched_stub
@@ -190,8 +180,6 @@ IRQ_STUB 44, common_irq_stub
 IRQ_STUB 45, common_irq_stub
 IRQ_STUB 46, common_irq_stub
 IRQ_STUB 47, common_irq_stub
-# --- END MODIFIED ---
-
 
 common_irq_stub:
     # Save all general-purpose registers
@@ -239,7 +227,7 @@ common_irq_stub:
     iretq
 
 
-# --- Syscall Stub ---
+# Syscall Stub
 .global common_syscall_stub
 common_syscall_stub:
     # Save all general-purpose registers
@@ -294,8 +282,7 @@ common_syscall_stub:
     iretq
 
 
-# --- NEW: Common IRQ Stub for Scheduler ---
-# This is called *only* by the timer (IRQ 0 / INT 32)
+# Common IRQ Scheduler Stub (for IRQ 0 - Timer)
 .global common_irq_sched_stub
 common_irq_sched_stub:
     # 1. Save all registers (this is 'struct registers')

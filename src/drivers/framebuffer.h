@@ -46,9 +46,17 @@ void fb_set_scale(uint32_t new_scale);
  */
 void fb_set_cursor(uint32_t x, uint32_t y);
 
+/**
+ * @brief Gets the current cursor X position.
+ * @return The cursor X position (in characters).
+ */
 int fb_get_cursor_x(void);
+
+/**
+ * @brief Gets the current cursor Y position.
+ * @return The cursor Y position (in characters).
+ */
 int fb_get_cursor_y(void);
-// ...
 
 #endif // __FRAMEBUFFER_H__
 

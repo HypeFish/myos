@@ -7,9 +7,6 @@ static void io_wait(void) {
 }
 
 void pic_remap_and_init(void) {
-    // --- Remap the PICs ---
-    // We need to remap the PICs to a different offset (32-47)
-    // because their default (8-15) conflicts with CPU exceptions.
 
     // 1. Start initialization (ICW1)
     outb(PIC1_COMMAND, 0x11);

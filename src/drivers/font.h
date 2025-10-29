@@ -7,6 +7,6 @@
 // Define the font's dimensions for the rest of the kernel
 #define FONT_WIDTH  8
 #define FONT_HEIGHT 16
-#define FONT_DATA   fontGlyphBuffer // <-- CHANGE THIS LINE
+#define FONT_DATA   fontGlyphBuffer 
 
 #endif // __FONT_H__

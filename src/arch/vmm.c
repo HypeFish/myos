@@ -4,7 +4,7 @@
 #include "string.h" // For memset
 #include <stddef.h>     // For NULL
 #include <limine.h>
-// vmm.h includes paging.h, so VIRTUAL_MEMORY_OFFSET is available
+
 
 // --- Page Tables ---
 __attribute__((aligned(PAGE_SIZE)))
@@ -20,7 +20,7 @@ __attribute__((aligned(PAGE_SIZE)))
 static page_table_t pdpt_hhdm; // For the HHDM (0xffff8...)
 
 // --- Page Directories ---
-// We need 32 PDs to map 32GiB for the identity/HHDM maps
+// 32 PDs to map 64GiB (32 * 2MiB * 512 entries = 64GiB)
 __attribute__((aligned(PAGE_SIZE)))
 static page_table_t pd[32];
 
@@ -29,8 +29,7 @@ __attribute__((aligned(PAGE_SIZE)))
 static page_table_t pd_kernel;
 
 // --- Page Tables (PTs) ---
-// We need 512 PTs to map 1GiB (1 PD * 512 PTs)
-// This is the only way to solve the 2MiB alignment bug.
+// 512 PTs to map 1GiB (512 * 4KiB * 512 entries = 1GiB)
 __attribute__((aligned(PAGE_SIZE)))
 static page_table_t pt_kernel[512];
 

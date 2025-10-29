@@ -4,7 +4,7 @@
 #include "pmm.h"         // For alloc command
 #include "heap.h"        // For ktest command
 #include "timer.h"       // For uptime command
-#include "tar.h"        // For tar filesystem
+#include "tar.h"        
 
 // --- Shell Buffer  ---
 static char line_buffer[256];
@@ -41,7 +41,7 @@ static void fb_print_hex(uint64_t n) {
 static void shell_execute(const char* command) {
     if (strcmp(command, "help") == 0) {
         fb_print("Welcome to myOS!\n");
-        fb_print("Available commands: help, clear, panic, alloc, ktest, uptime, syscall\n");
+        fb_print("Available commands: help, clear, panic, alloc, ktest, uptime, syscall, cat, ls\n");
     }
     else if (strcmp(command, "clear") == 0) {
         fb_clear();
@@ -156,7 +156,6 @@ void kshell_init(void) {
 void kshell_process_char(char c) {
     // This is the logic from idt.c's keyboard handler
     if (c == '\n') {
-        // --- ENTER KEY ---
         fb_putchar('\n');
         line_buffer[buffer_index] = '\0'; // Null-terminate
         shell_execute(line_buffer);      // Process command
@@ -164,14 +163,12 @@ void kshell_process_char(char c) {
         fb_print("> ");                    // Print new prompt
     }
     else if (c == '\b') {
-        // --- BACKSPACE KEY ---
         if (buffer_index > 0) {
             buffer_index--;
             fb_putchar('\b'); // fb_putchar handles the erase
         }
     }
     else if (c != 0) {
-        // --- PRINTABLE CHAR ---
         if (buffer_index < MAX_BUFFER) {
             line_buffer[buffer_index] = c;
             buffer_index++;

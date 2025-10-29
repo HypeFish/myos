@@ -50,18 +50,14 @@ kernel_address_request = {
     .revision = 0
 };
 
-// --- NEW: Add a Limine Module Request ---
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_module_request
 module_request = {
     .id = LIMINE_MODULE_REQUEST,
     .revision = 0
 };
-// --- END NEW ---
 
 
-// Finally, define the start and end markers for the Limine requests.
-// These can also be moved anywhere, to any .c file, as seen fit.
 __attribute__((used, section(".limine_requests_start")))
 static volatile LIMINE_REQUESTS_START_MARKER;
 
@@ -76,8 +72,6 @@ static void hcf(void) {
     }
 }
 
-// --- shell_execute, fb_print_uint, and fb_print_hex were REMOVED ---
-// (They now live in kshell.c)
 
 struct limine_framebuffer* global_framebuffer = NULL;
 
@@ -94,17 +88,16 @@ struct limine_framebuffer* vmm_get_framebuffer(void) {
 
 // The following will be our kernel's entry point.
 void _start(void) {
-    // --- 1. Init Serial (for debugging) ---
+    // --- 1. Initialize Serial (for debugging errors) ---
     serial_init();
-    serial_write_string("Hello, Serial World!\n");
 
-    // --- 2. Initialize core systems ---
+    // --- 2. Initialize Core CPU Systems ---
     gdt_init();
     idt_init();
     pic_remap_and_init();
-    serial_write_string("PIC remapped!\n");
 
-    // --- 3. VALIDATE ALL LIMINE REQUESTS ---
+    // --- 3. Validate Limine Bootloader Requests ---
+    // Must be done before using any of the request responses.
     if (framebuffer_request.response == NULL
         || framebuffer_request.response->framebuffer_count < 1) {
         serial_write_string("ERROR: No framebuffer available.\n");
@@ -121,52 +114,38 @@ void _start(void) {
         hcf();
     }
     
-    // --- NEW: Validate the module request ---
     if (module_request.response == NULL || module_request.response->module_count < 1) {
         serial_write_string("ERROR: Failed to get initrd module.\n");
         hcf();
     }
-    // --- END NEW ---
 
-    // --- 4. Initialize Memory & Framebuffer ---
+    // --- 4. Initialize Memory Systems ---
+    // (VMM must be first to set up the higher-half kernel)
+    vmm_init(); 
+    pmm_init(memmap_request.response);
+    heap_init();
+
+    // --- 5. Initialize Subsystems & Drivers ---
     global_framebuffer = framebuffer_request.response->framebuffers[0];
-
-    // NOW it is safe to call vmm_init
-    vmm_init(); // Virtual Memory Manager
-    serial_write_string("VMM Phase 1b complete. New page map is active.\n");
-
-    // NOW it is safe to call pmm_init
-    pmm_init(memmap_request.response); // Physical Memory Manager
-
-    heap_init(); // Kernel Heap
     fb_init(global_framebuffer);
-
-    task_init(); // Tasking system
-
-    // --- 5. Enable Interrupts & Start Shell ---
+    task_init();
     pit_init(100); // Initialize PIT to 100Hz
-
-    serial_write_string("Interrupts enabled!\n");
-    fb_print("Welcome to myOS!\n");
     
-    // --- NEW: Print initrd location ---
+    // Load the initrd (RAM disk)
     struct limine_file* initrd = module_request.response->modules[0];
-    tar_init(initrd->address); // Initialize the tar filesystem
+    tar_init(initrd->address);
+
+    // --- 6. Print Welcome & Start Shell ---
+    fb_print("Welcome to myOS! Type 'help' for a list of commands.\n");
     fb_print("Initrd loaded at: ");
-    kshell_print_hex((uint64_t)initrd->address); // <-- Use public helper
-    fb_print("\nSize: ");
-    kshell_print_uint(initrd->size); // <-- Use public helper
-    fb_print(" bytes\n");
-    // --- END NEW ---
+    kshell_print_hex((uint64_t)initrd->address);
+\
+    kshell_init(); // Prints the first "> " prompt
 
-    // --- MODIFIED: Start the shell ---
-    kshell_init(); // This will print the first "> "
-
+    // --- 7. Enable Interrupts & Idle ---
+    // All initialization is done. Interrupts can be enabled. The shell
+    // will run in the timer interrupt context.
     __asm__ volatile ("sti");
-
-    // This loop will run *until* the first timer IRQ fires.
-    // The IRQ handler will switch to 'idle_task'.
-    // This code will never run again.
     for (;;) {
         __asm__ volatile ("hlt");
     }

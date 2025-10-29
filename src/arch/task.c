@@ -41,13 +41,10 @@ task_t* create_task(void (*entry_point)(void)) {
     }
 
     // Stack grows downwards. Set the pointer to the *top* of the stack.
-    // We also map it to the higher-half.
+    // Add VIRTUAL_MEMORY_OFFSET to get the virtual address.
     task->kernel_stack_ptr = (uint64_t)task->kernel_stack + KERNEL_STACK_SIZE + VIRTUAL_MEMORY_OFFSET;
 
-    // --- Set up the initial "context" to launch the task ---
-    // We set up a fake "interrupt" stack frame.
-    // When we 'iretq' for the first time, it will pop these values.
-
+    // Set up the initial stack frame for 'iretq'
     // Move stack pointer down to make space for a struct registers
     task->kernel_stack_ptr -= sizeof(struct registers);
 
