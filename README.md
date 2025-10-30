@@ -2,7 +2,7 @@
 
 `myOS` is a small, 64-bit hobby operating system kernel built from scratch in C and x86-64 Assembly. This project is a learning exercise in low-level systems programming, exploring everything from the boot process and memory management to preemptive multitasking and basic drivers.
 
-*(Replace this with a screenshot of your OS in action!)*
+![myOS right as it boots](image.png)
 
 ## Current Features
 
